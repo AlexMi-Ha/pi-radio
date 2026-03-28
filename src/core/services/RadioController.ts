@@ -81,13 +81,13 @@ export class RadioController {
         switch(this.state.mode) {
             case "internet_radio":
                 this.outputPort.setPresetState(this.state.preset);
-                const presetUrl = this.presetPort.getRadioUrlByPreset(this.state.preset);
+                const presetUrl = this.presetPort.getValueByPreset("internet_radio", this.state.preset);
                 this.audioPort.playRadio(presetUrl);
                 break;
             case "fm":
                 this.outputPort.setPresetState(this.state.preset);
-                const presetFreq = this.presetPort.getFMFrequencyByPreset(this.state.preset);
-                this.audioPort.playFm(presetFreq);
+                const presetFreq = this.presetPort.getValueByPreset("fm" ,this.state.preset);
+                this.audioPort.playFm(+presetFreq);
                 break;
             case "bluetooth":
                 this.outputPort.idlePresetState();
@@ -111,11 +111,11 @@ export class RadioController {
         this.audioPort.stop();
         
         if(this.state.mode == "internet_radio") {
-            const presetUrl = this.presetPort.getRadioUrlByPreset(this.state.preset);
+            const presetUrl = this.presetPort.getValueByPreset("internet_radio", this.state.preset);
             this.audioPort.playRadio(presetUrl);
         }else {
-            const presetFreq = this.presetPort.getFMFrequencyByPreset(this.state.preset);
-            this.audioPort.playFm(presetFreq);
+            const presetFreq = this.presetPort.getValueByPreset("fm" ,this.state.preset);
+            this.audioPort.playFm(+presetFreq);
         }
     }
 

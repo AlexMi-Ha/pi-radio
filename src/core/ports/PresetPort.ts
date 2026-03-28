@@ -1,7 +1,14 @@
-export interface PresetPort {
-    getRadioUrlByPreset(idx: number): string;
-    getFMFrequencyByPreset(idx: number): number;
+import { Mode } from "../models/State";
 
-    setRadioUrlForPreset(idx: number, url: string): void;
-    setFMFrequencyForPreset(idx: number, freq: number): void;
+export interface PresetPort {
+    getValueByPreset(mode: "internet_radio" | "fm", presetIdx: number): string;
+
+    getAllPresets(): {
+        "internet_radio": string[]
+        "fm": string[]
+    };
+
+    getMaxPresetIndex(): number;
+
+    setValueForPreset(mode: "internet_radio" | "fm", presetIdx: number, value: string): void;
 }
