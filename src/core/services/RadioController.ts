@@ -29,16 +29,21 @@ export class RadioController {
         this.apiPort = params.apiPort;
         this.presetPort = params.presetPort;
         this.state = params.state;
+        console.log(this.state)
     }
 
     public init() {
         this.configureInputAdapter();
         this.configureApiAdapter();
+
+        this.presetPort.onPresetsUpdated(() => {
+            this.onSetMode(this.state.mode, true);
+        })
     }
 
     private configureInputAdapter() {
-        this.inputPort.onModeSelect(this.onSetMode);
-        this.inputPort.onPresetSelect(this.onSetPreset);
+        this.inputPort.onModeSelect((m) => this.onSetMode(m));
+        this.inputPort.onPresetSelect((p) => this.onSetPreset(p));
         this.inputPort.onVolumeChange((delta: number) => {
             this.onSetVolume(this.state.volume + delta);
         });
@@ -52,11 +57,11 @@ export class RadioController {
     }
 
     private configureApiAdapter() {
-        this.apiPort.onSetPower(this.onSetPower);
+        this.apiPort.onSetPower((p) => this.onSetPower(p));
         this.apiPort.onGetState(() => this.state);
-        this.apiPort.onSetMode(this.onSetMode);
-        this.apiPort.onSetPreset(this.onSetPreset);
-        this.apiPort.onSetVolume(this.onSetVolume);
+        this.apiPort.onSetMode((m) => this.onSetMode(m));
+        this.apiPort.onSetPreset((p) => this.onSetPreset(p));
+        this.apiPort.onSetVolume((v) => this.onSetVolume(v));
     }
 
     private onSetPower(power: Power) : void {

@@ -2,6 +2,8 @@ import { PresetPort } from "../../core/ports/PresetPort";
 
 export class InMemoryPresetAdapter implements PresetPort {
 
+    onUpdatedCallback?: () => void;
+
     private radioPresets: string[] = ["", "", "", "", ""];
     private fmPresets: string[] = ["", "", "", "", ""];
 
@@ -28,6 +30,10 @@ export class InMemoryPresetAdapter implements PresetPort {
         }else {
             this.fmPresets[presetIdx] = value;
         }
+        this.onUpdatedCallback?.()
     }
 
+    onPresetsUpdated(callback: () => void): void {
+        this.onUpdatedCallback = callback;
+    }
 }

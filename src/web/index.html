@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title></title>
+        <script src="/public/js/api.js"></script>
+        <style>
+            :root {
+                --primary: #ac4d4d;
+                --accent: #4494e4;
+                --static11: rgba(255,255,255,0.03);
+                --white: #fff;
+                --green: #71de74;
+
+                --text: #ede3e3;
+                --textLowOpac: #ede3e399;
+                --background: #101010;
+                --secondary: #20201d;
+            }
+
+            body {
+                background-color: var(--background);
+                color: var(--text);
+                height: 90vh;
+                box-sizing: border-box;
+            }
+            
+            .hidden {
+                display: none !important;
+            }
+
+            #power {
+                display: grid;
+                place-content: center;
+                height: 100%;
+            }
+
+            .radio-content {
+                background-color: var(--secondary);
+                min-width: 500px;
+                width: 100%;
+                max-width: 1900px;
+                border: solid var(--textLowOpac) 1px;
+                border-radius: 2px;
+            }
+
+            .radio-nav {
+                background-color: var(--background);
+                display: flex;
+                flex-wrap: nowrap;
+                flex-direction: row;
+                width: 100%;
+            }
+
+            .radio-nav .mode-button {
+                border: none;
+                background-color: var(--background);
+                color: var(--text);
+                height: 2.5em;
+                margin: 0;
+                padding-left: 1em;
+                padding-right: 2rem;
+                font-size: 1.1rem;
+            }
+
+            .radio-content .mode-button.active, .radio-content .mode-button:hover {
+                background-color: var(--secondary);
+            }
+
+            .mode-content {
+                padding: 1em 2em;
+            }
+
+            #radio-volume-container {
+                text-align: center;
+            }
+
+            #fm_preset_group, #iradio_preset_group {
+                display: grid;
+                grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+                place-items: center;
+            }
+
+            #fm_preset_values, #iradio_preset_values {
+                display: grid;
+                grid-template-columns: 1fr 5fr 1fr;
+                padding: 1em 2em;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="idle">
+            <p></p>
+        </div>
+        <div id="power" class="hidden">
+            <section class="radio-content">
+                <nav class="radio-nav">
+                    <button class="mode-button active" id="mode_btn_iradio">Internet Radio</button>
+                    <button class="mode-button" id="mode_btn_fmradio">FM Radio</button>
+                    <button class="mode-button" id="mode_btn_bt">Bluetooth</button>
+                    <button class="mode-button" id="mode_btn_spotify">Spotify</button>
+                </nav>
+                <div class="mode-content active" id="mode_iradio">
+                    <div id="iradio_preset_group">
+                        <input type="radio" id="iradio_preset_0" name="preset" value="0">
+                        <input type="radio" id="iradio_preset_1" name="preset" value="1">
+                        <input type="radio" id="iradio_preset_2" name="preset" value="2">
+                        <input type="radio" id="iradio_preset_3" name="preset" value="3">
+                        <input type="radio" id="iradio_preset_4" name="preset" value="4">
+                        <label for="iradio_preset_0">1</label>
+                        <label for="iradio_preset_1">2</label>
+                        <label for="iradio_preset_2">3</label>
+                        <label for="iradio_preset_3">4</label>
+                        <label for="iradio_preset_4">5</label>
+                    </div>
+                </div>
+                <div class="mode-content" id="mode_fmradio">
+                    <div id="fm_preset_group">
+                        <input type="radio" id="fm_preset_0" name="preset" value="0">
+                        <input type="radio" id="fm_preset_1" name="preset" value="1">
+                        <input type="radio" id="fm_preset_2" name="preset" value="2">
+                        <input type="radio" id="fm_preset_3" name="preset" value="3">
+                        <input type="radio" id="fm_preset_4" name="preset" value="4">
+                        <label for="fm_preset_0">1</label>
+                        <label for="fm_preset_1">2</label>
+                        <label for="fm_preset_2">3</label>
+                        <label for="fm_preset_3">4</label>
+                        <label for="fm_preset_4">5</label>
+                    </div>
+
+                </div>
+                <div class="mode-content" id="mode_bt">
+                    <p>Open for incoming Bluetooth connections!</p>
+                </div>
+                <div class="mode-content" id="mode_spotify">
+                    <p>Open for incoming Spotify connections</p>
+                </div>
+
+
+                <div id="radio-volume-container">
+                    <input type="range" min="0" max="100" value="50" id="radio_volume_slider">
+                </div>
+
+                <div id="fm_preset_values">
+                    <p>Preset</p>
+                    <p>Frequency</p>
+                    <p>Action</p>
+
+                    <p>1</p>
+                    <input id="fm_preset_value_0" type="text">
+                    <button id="fm_preset_update_0">Update</button>
+
+                    <p>2</p>
+                    <input id="fm_preset_value_1" type="text">
+                    <button id="fm_preset_update_1">Update</button>
+
+                    <p>3</p>
+                    <input id="fm_preset_value_2" type="text">
+                    <button id="fm_preset_update_2">Update</button>
+
+                    <p>4</p>
+                    <input id="fm_preset_value_3" type="text">
+                    <button id="fm_preset_update_3">Update</button>
+
+                    <p>5</p>
+                    <input id="fm_preset_value_4" type="text">
+                    <button id="fm_preset_update_4">Update</button>
+                </div>
+
+                <div id="iradio_preset_values">
+                    <p>Preset</p>
+                    <p>URL</p>
+                    <p>Action</p>
+
+                    <p>1</p>
+                    <input id="iradio_preset_value_0" type="text">
+                    <button id="iradio_preset_update_0">Update</button>
+
+                    <p>2</p>
+                    <input id="iradio_preset_value_1" type="text">
+                    <button id="iradio_preset_update_1">Update</button>
+
+                    <p>3</p>
+                    <input id="iradio_preset_value_2" type="text">
+                    <button id="iradio_preset_update_2">Update</button>
+
+                    <p>4</p>
+                    <input id="iradio_preset_value_3" type="text">
+                    <button id="iradio_preset_update_3">Update</button>
+
+                    <p>5</p>
+                    <input id="iradio_preset_value_4" type="text">
+                    <button id="iradio_preset_update_4">Update</button>
+                </div>
+            </section>
+        </div>
+
+        <script>
+const idleContainer = document.getElementById('idle');
+const powerContainer = document.getElementById('power');
+
+const btn_iradio = document.getElementById('mode_btn_iradio');
+const btn_fmradio = document.getElementById('mode_btn_fmradio');
+const btn_bt = document.getElementById('mode_btn_bt');
+const btn_spotify = document.getElementById('mode_btn_spotify');
+
+const cont_iradio = document.getElementById('mode_iradio');
+const cont_fmradio = document.getElementById('mode_fmradio');
+const cont_bt = document.getElementById('mode_bt');
+const cont_spotify = document.getElementById('mode_spotify');
+
+const iradio_preset_btns = [
+    document.getElementById('iradio_preset_0'),
+    document.getElementById('iradio_preset_1'),
+    document.getElementById('iradio_preset_2'),
+    document.getElementById('iradio_preset_3'),
+    document.getElementById('iradio_preset_4')
+]
+const fm_preset_btns = [
+    document.getElementById('fm_preset_0'),
+    document.getElementById('fm_preset_1'),
+    document.getElementById('fm_preset_2'),
+    document.getElementById('fm_preset_3'),
+    document.getElementById('fm_preset_4')
+]
+
+const radio_volume_slider = document.getElementById('radio_volume_slider');
+
+let currentlyInputingVolume = false;
+
+const iradio_preset_values_container = document.getElementById('iradio_preset_values'); 
+const fm_preset_values_container = document.getElementById('fm_preset_values'); 
+
+const iradio_preset_inputs = [
+    document.getElementById('iradio_preset_value_0'),
+    document.getElementById('iradio_preset_value_1'),
+    document.getElementById('iradio_preset_value_2'),
+    document.getElementById('iradio_preset_value_3'),
+    document.getElementById('iradio_preset_value_4')
+];
+const fm_preset_inputs = [
+    document.getElementById('fm_preset_value_0'),
+    document.getElementById('fm_preset_value_1'),
+    document.getElementById('fm_preset_value_2'),
+    document.getElementById('fm_preset_value_3'),
+    document.getElementById('fm_preset_value_4')
+];
+
+const iradio_preset_updates = [
+    document.getElementById('iradio_preset_update_0'),
+    document.getElementById('iradio_preset_update_1'),
+    document.getElementById('iradio_preset_update_2'),
+    document.getElementById('iradio_preset_update_3'),
+    document.getElementById('iradio_preset_update_4')
+];
+const fm_preset_updates = [
+    document.getElementById('fm_preset_update_0'),
+    document.getElementById('fm_preset_update_1'),
+    document.getElementById('fm_preset_update_2'),
+    document.getElementById('fm_preset_update_3'),
+    document.getElementById('fm_preset_update_4')
+];
+
+function setElementVisibility(active, ...eles) {
+    for(ele of eles) {
+        if(active) {
+            ele.classList.remove('hidden')
+        }else {
+            ele.classList.add('hidden')
+        }
+    }
+}
+function setElementAtive(active, ...eles) {
+    for(ele of eles) {
+        if(active) {
+            ele.classList.add('active')
+        }else {
+            ele.classList.remove('active')
+        }
+    }
+}
+        </script>
+        <script>
+const api = new Api();
+
+updateState();
+getPresetValues();
+setInterval(async () => await updateState(), 5000)
+
+async function updateState(argState = undefined) {
+    const fetchedState = argState ?? await api.getState();
+
+    const state = {
+        power: fetchedState.power,
+        mode: fetchedState.mode,
+        volume: +fetchedState.volume,
+        preset: +fetchedState.preset
+    };
+
+    if(state.power == 'idle') {
+        setElementVisibility(true, idleContainer);
+        setElementVisibility(false, powerContainer);
+        return;
+    }
+    setElementVisibility(false, idleContainer);
+    setElementVisibility(true, powerContainer);
+
+    setMode(state.mode);
+
+    setPreset(state.mode, state.preset);
+
+    if(!currentlyInputingVolume) {
+        radio_volume_slider.value = state.volume;
+    }
+}
+
+async function getPresetValues() {
+    const presets = await api.getAllPresets();
+
+    for(let i = 0; i < iradio_preset_inputs.length; ++i) {
+        iradio_preset_inputs[i].value = presets.internet_radio[i];
+    }
+    for(let i = 0; i < fm_preset_inputs.length; ++i) {
+        fm_preset_inputs[i].value = presets.fm[i];
+    }
+}
+
+function setMode(mode) {
+    setElementAtive(false, btn_iradio, btn_fmradio, btn_bt, btn_spotify);
+    setElementVisibility(false, cont_iradio, cont_fmradio, cont_bt, cont_spotify);
+    setElementVisibility(false, fm_preset_values_container, iradio_preset_values_container)
+    if(mode == "internet_radio") {
+        setElementAtive(true, btn_iradio);
+        setElementVisibility(true, cont_iradio);
+        setElementVisibility(true, iradio_preset_values_container)
+    }else if(mode == "fm") {
+        setElementAtive(true, btn_fmradio);
+        setElementVisibility(true, cont_fmradio);
+        setElementVisibility(true, fm_preset_values_container)
+    }else if(mode == "bluetooth") {
+        setElementAtive(true, btn_bt);
+        setElementVisibility(true, cont_bt);
+    }else if(mode == "spotify") {
+        setElementAtive(true, btn_spotify);
+        setElementVisibility(true, cont_spotify);
+    }
+}
+
+function setPreset(mode, preset) {
+    if(!(mode == "internet_radio" || mode == "fm")) {
+        return;
+    }
+    if(mode == 'internet_radio') {
+        iradio_preset_btns[preset].checked = true;
+    }else {
+        fm_preset_btns[preset].checked = true;
+    }
+}
+        </script>
+        <script>
+btn_iradio.addEventListener('click', async () => {
+    const state = await api.setMode('internet_radio');
+    await updateState(state);
+});
+btn_fmradio.addEventListener('click', async () => {
+    const state = await api.setMode('fm');
+    await updateState(state);
+});
+btn_bt.addEventListener('click', async () => {
+    const state = await api.setMode('bluetooth');
+    await updateState(state);
+});
+btn_spotify.addEventListener('click', async () => {
+    const state = await api.setMode('spotify');
+    await updateState(state);
+});
+
+for(let i = 0; i < iradio_preset_btns.length; ++i) {
+    iradio_preset_btns[i].addEventListener('click', async () => {
+        const state = await api.setCurrentPreset(i);
+        await updateState(state);
+    });
+}
+for(let i = 0; i < fm_preset_btns.length; ++i) {
+    fm_preset_btns[i].addEventListener('click', async () => {
+        const state = await api.setCurrentPreset(i);
+        await updateState(state);
+    });
+}
+
+radio_volume_slider.addEventListener('change', async () => {
+    const state = await api.setVolume(radio_volume_slider.value);
+    currentlyInputingVolume = false;
+    await updateState(state);
+});
+
+radio_volume_slider.addEventListener('input', () => {
+    currentlyInputingVolume = true;
+});
+
+for(let i = 0; i < iradio_preset_updates; ++i) {
+    iradio_preset_updates[i].addEventListener('click', async() => {
+        await api.setPresetForMode('internet_radio', i, iradio_preset_inputs[i].value);
+    })
+}
+
+for(let i = 0; i < fm_preset_updates; ++i) {
+    fm_preset_updates[i].addEventListener('click', async() => {
+        await api.setPresetForMode('internet_radio', i, fm_preset_inputs[i].value);
+    })
+}
+
+        </script>
+    </body>
+</html>

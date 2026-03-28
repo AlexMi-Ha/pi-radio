@@ -11,4 +11,6 @@ export interface PresetPort {
     getMaxPresetIndex(): number;
 
     setValueForPreset(mode: "internet_radio" | "fm", presetIdx: number, value: string): void;
+
+    onPresetsUpdated(callback: () => void): void
 }

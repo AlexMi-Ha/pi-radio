@@ -1,4 +1,5 @@
-import express, {Request, Response} from "express";
+import express from "express";
+import path from "path";
 import { Power, Mode, State } from "../../core/models/State";
 import { ApiPort } from "../../core/ports/ApiPort";
 import { PresetPort } from "../../core/ports/PresetPort";
@@ -38,11 +39,22 @@ export class ApiAdapter implements ApiPort {
         this.port = port;
         this.app = express();
         this.app.use(express.json());
-        this.setupRoutes();
+        this.setupApiRoutes();
+        this.setupWebRoutes();
     }
 
-    private setupRoutes() {
-        this.app.get('/', (req, res) => {
+    private setupWebRoutes() {
+        const projectRoot = path.resolve(__dirname, "../..");
+
+        this.app.use('/public', express.static(path.join(projectRoot, 'web', 'public')))
+
+        this.app.get('/', (req,res) => {
+            res.sendFile(path.join(projectRoot, 'web', 'index.html'))
+        });
+    }
+
+    private setupApiRoutes() {
+        this.app.get('/api/state', (req, res) => {
             if(!this.callbacks.getState) {
                 res.statusCode = 501;
                 res.send('getState callback not implemented');
@@ -52,19 +64,19 @@ export class ApiAdapter implements ApiPort {
             res.json(state);
         });
 
-        this.app.post('/power', (req, res) => {
+        this.app.post('/api/power', (req, res) => {
             if(!this.callbacks.setPower) {
                 res.statusCode = 501;
                 res.send('setPower callback not implemented');
                 return;
             }
-            const {state} = req.body;
-            this.callbacks.setPower(state);
+            const {power} = req.body;
+            this.callbacks.setPower(power);
 
             res.json(this.callbacks.getState?.());
         });
 
-        this.app.post('/mode', (req, res) => {
+        this.app.post('/api/mode', (req, res) => {
             if(!this.callbacks.setMode) {
                 res.statusCode = 501;
                 res.send('setMode callback not implemented');
@@ -76,19 +88,19 @@ export class ApiAdapter implements ApiPort {
             res.json(this.callbacks.getState?.());
         });
 
-        this.app.post('/volume', (req,res) => {
+        this.app.post('/api/volume', (req,res) => {
             if(!this.callbacks.setVolume) {
                 res.statusCode = 501;
                 res.send('setVolume callback not implemented');
                 return;
             }
-            const {vol} = req.body;
-            this.callbacks.setVolume(vol);
+            const {volume} = req.body;
+            this.callbacks.setVolume(volume);
 
             res.json(this.callbacks.getState?.());
         });
 
-        this.app.post('/preset', (req,res) => {
+        this.app.post('/api/preset', (req,res) => {
             if(!this.callbacks.setPreset) {
                 res.statusCode = 501;
                 res.send('setPreset callback not implemented');
@@ -100,11 +112,11 @@ export class ApiAdapter implements ApiPort {
             res.json(this.callbacks.getState?.());
         });
 
-        this.app.get('/preset', (req, res) => {
+        this.app.get('/api/preset', (req, res) => {
             const presets = this.presetPort.getAllPresets();
             res.json(presets);
         });
-        this.app.get('/preset/:mode', (req, res) => {
+        this.app.get('/api/preset/:mode', (req, res) => {
             const mode = req.params.mode;
             if(!(mode == "internet_radio" || mode == "fm")) {
                 res.statusCode = 400;
@@ -114,7 +126,7 @@ export class ApiAdapter implements ApiPort {
             res.json(this.getPresetsOfMode(mode));
         });
 
-        this.app.get('/preset/:mode/:presetId', (req, res) => {
+        this.app.get('/api/preset/:mode/:presetId', (req, res) => {
             const mode = req.params.mode;
             const presetId = Number.parseInt(req.params.presetId, 10);
             if(!(mode == "internet_radio" || mode == "fm")) {
@@ -132,7 +144,7 @@ export class ApiAdapter implements ApiPort {
             res.json(presets[presetId]);
         });
 
-        this.app.post('/preset/:mode/:presetId', (req, res) => {
+        this.app.post('/api/preset/:mode/:presetId', (req, res) => {
             const mode = req.params.mode;
             const presetId = Number.parseInt(req.params.presetId, 10);
             const {value} = req.body;
