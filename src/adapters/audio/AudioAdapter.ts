@@ -16,7 +16,7 @@ export class AudioAdapter implements AudioPort {
     }
 
 
-    async playMode(mode: Mode, source?: any): Promise<void> {
+    async playMode(mode: Mode, presetIndex: number): Promise<void> {
         const nextProvider = this.providers.get(mode);
         if(!nextProvider) {
             throw new Error('No audio provider found for ' + mode);
@@ -25,7 +25,7 @@ export class AudioAdapter implements AudioPort {
             await this.currentProvider.stop();
         }
         this.currentProvider = nextProvider;
-        await this.currentProvider.start(source);
+        await this.currentProvider.start(presetIndex);
     }
 
     async stop(): Promise<void> {

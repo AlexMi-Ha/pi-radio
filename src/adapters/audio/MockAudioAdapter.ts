@@ -36,16 +36,16 @@ export class MockAudioAdapter implements AudioPort {
         console.log(`[Audio] Spotify mode enabled at volume ${this.volume}`);
     }
 
-    playMode(mode: Mode, source?: any): Promise<void> {
+    playMode(mode: Mode, presetIndex: number): Promise<void> {
         switch(mode) {
             case "internet_radio":
-                this.playRadio(source);
+                this.playRadio(presetIndex);
                 break;
             case "bluetooth":
                 this.playBluetooth();
                 break;
             case "fm":
-                this.playFm(source);
+                this.playFm(presetIndex);
                 break;
             case "spotify":
                 this.playSpotify();
