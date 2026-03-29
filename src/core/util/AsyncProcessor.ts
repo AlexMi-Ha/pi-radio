@@ -31,7 +31,7 @@ export class AsyncProcessor {
             try {
                 await task();
             }catch(err) {
-                console.error("AsyncQueue task error:", err);
+                console.error("[AsyncQueue] task error:", err);
             }
         }
         this.running = false;

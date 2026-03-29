@@ -399,7 +399,6 @@ radio_volume_slider.addEventListener('input', () => {
 
 for(let i = 0; i < iradio_preset_updates.length; ++i) {
     iradio_preset_updates[i].addEventListener('click', async() => {
-        console.log('click')
         await api.setPresetForMode('internet_radio', i, iradio_preset_inputs[i].value);
     })
 }

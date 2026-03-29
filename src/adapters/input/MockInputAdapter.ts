@@ -34,11 +34,11 @@ export class MockInputAdapter implements InputPort {
     }
 
     start() {
-        console.log("MockInputAdapter started. Type commands:");
-        console.log("'v <delta>' to change volume (e.g., v 5 or v -3)");
-        console.log("'m <mode>' to change mode (e.g., m internet_radio)");
-        console.log("'f <id>' to press preset button (e.g., f 1)");
-        console.log("'p' to toggle power (idle/active)");
+        console.log("[Input] MockInputAdapter started. Type commands:");
+        console.log("[Input] 'v <delta>' to change volume (e.g., v 5 or v -3)");
+        console.log("[Input] 'm <mode>' to change mode (e.g., m internet_radio)");
+        console.log("[Input] 'f <id>' to press preset button (e.g., f 1)");
+        console.log("[Input] 'p' to toggle power (idle/active)");
 
         this.rl.on("line", (line) => {
             const parts = line.trim().split(" ");
