@@ -30,8 +30,17 @@ export class InternetRadioAudioProvider implements AudioProvider {
         this.currentProcess = spawn('mpv', [
             url,
             '--no-video',
-            '--volume=100'
+            '--volume=100',
+            '--quiet'
         ]);
+
+        this.currentProcess.stdout.on("data", (data) => {
+            console.log(`[Internet Radio - mpv stdout]: ${data.toString()}`);
+        });
+
+        this.currentProcess.stderr.on("data", (data) => {
+            console.error(`[Internet Radio - mpv stderr]: ${data.toString()}`);
+        });
 
         this.currentProcess.on("exit", (code) => {
             console.log(`[Internet Radio - mpv exited] code: ${code}`);
