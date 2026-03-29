@@ -48,31 +48,31 @@ export class RadioController {
         this.configureApiAdapter();
 
         this.presetPort.onPresetsUpdated(() => {
-            this.modeAsyncProcessor.runSafe(() => this.onSetMode(this.state.mode, true), 50);
+            this.modeAsyncProcessor.runSafe(() => this.onSetMode(this.state.mode, true));
         })
     }
 
     private configureInputAdapter() {
-        this.inputPort.onModeSelect((m) => this.modeAsyncProcessor.runSafe(() => this.onSetMode(m), 50));
-        this.inputPort.onPresetSelect((p) => this.presetAsyncProcessor.runSafe(() => this.onSetPreset(p), 50));
+        this.inputPort.onModeSelect((m) => this.modeAsyncProcessor.runSafe(() => this.onSetMode(m)));
+        this.inputPort.onPresetSelect((p) => this.presetAsyncProcessor.runSafe(() => this.onSetPreset(p)));
         this.inputPort.onVolumeChange((delta: number) => {
-            this.presetAsyncProcessor.runSafe(() => this.onSetVolume(this.state.volume + delta), 50);
+            this.presetAsyncProcessor.runSafe(() => this.onSetVolume(this.state.volume + delta));
         });
         this.inputPort.onPowerToggle(() => {
             if(this.state.power == "power") {
-                this.powerAsyncProcessor.runSafe(() => this.onSetPower("idle"), 50);
+                this.powerAsyncProcessor.runSafe(() => this.onSetPower("idle"));
             }else {
-                this.powerAsyncProcessor.runSafe(() => this.onSetPower("power"), 50);
+                this.powerAsyncProcessor.runSafe(() => this.onSetPower("power"));
             }
         });
     }
 
     private configureApiAdapter() {
-        this.apiPort.onSetPower((p) => this.powerAsyncProcessor.runSafe(() => this.onSetPower(p), 50));
+        this.apiPort.onSetPower((p) => this.onSetPower(p));
         this.apiPort.onGetState(() => this.state);
-        this.apiPort.onSetMode((m) => this.modeAsyncProcessor.runSafe(() => this.onSetMode(m),50));
-        this.apiPort.onSetPreset((p) => this.presetAsyncProcessor.runSafe(() => this.onSetPreset(p),50));
-        this.apiPort.onSetVolume((v) => this.volumeAsyncProcessor.runSafe(() => this.onSetVolume(v),50));
+        this.apiPort.onSetMode((m) => this.onSetMode(m));
+        this.apiPort.onSetPreset((p) => this.onSetPreset(p));
+        this.apiPort.onSetVolume((v) => this.onSetVolume(v));
     }
 
     private async onSetPower(power: Power) : Promise<void> {

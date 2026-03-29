@@ -11,23 +11,23 @@ export class ApiAdapter implements ApiPort {
     private presetPort : PresetPort;
     
     private callbacks: {
-        setPower?: (state: Power) => void,
-        setMode?: (mode: Mode) => void,
-        setVolume?: (vol: number) => void,
-        setPreset?: (idx: number) => void
+        setPower?: (state: Power) => Promise<void>,
+        setMode?: (mode: Mode) => Promise<void>,
+        setVolume?: (vol: number) => Promise<void>,
+        setPreset?: (idx: number) => Promise<void>
         getState? : () => State
     } = {};
 
-    onSetPower(callback: (state: Power) => void): void {
+    onSetPower(callback: (state: Power) => Promise<void>): void {
         this.callbacks.setPower = callback;
     }
-    onSetMode(callback: (mode: Mode) => void): void {
+    onSetMode(callback: (mode: Mode) => Promise<void>): void {
         this.callbacks.setMode = callback;
     }
-    onSetVolume(callback: (vol: number) => void): void {
+    onSetVolume(callback: (vol: number) => Promise<void>): void {
         this.callbacks.setVolume = callback;
     }
-    onSetPreset(callback: (idx: number) => void): void {
+    onSetPreset(callback: (idx: number) => Promise<void>): void {
         this.callbacks.setPreset = callback;
     }
     onGetState(callback: () => State): void {
@@ -64,50 +64,50 @@ export class ApiAdapter implements ApiPort {
             res.json(state);
         });
 
-        this.app.post('/api/power', (req, res) => {
+        this.app.post('/api/power', async (req, res) => {
             if(!this.callbacks.setPower) {
                 res.statusCode = 501;
                 res.send('setPower callback not implemented');
                 return;
             }
             const {power} = req.body;
-            this.callbacks.setPower(power);
+            await this.callbacks.setPower(power);
 
             res.json(this.callbacks.getState?.());
         });
 
-        this.app.post('/api/mode', (req, res) => {
+        this.app.post('/api/mode', async (req, res) => {
             if(!this.callbacks.setMode) {
                 res.statusCode = 501;
                 res.send('setMode callback not implemented');
                 return;
             }
             const {mode} = req.body;
-            this.callbacks.setMode(mode);
+            await this.callbacks.setMode(mode);
 
             res.json(this.callbacks.getState?.());
         });
 
-        this.app.post('/api/volume', (req,res) => {
+        this.app.post('/api/volume', async (req,res) => {
             if(!this.callbacks.setVolume) {
                 res.statusCode = 501;
                 res.send('setVolume callback not implemented');
                 return;
             }
             const {volume} = req.body;
-            this.callbacks.setVolume(volume);
+            await this.callbacks.setVolume(volume);
 
             res.json(this.callbacks.getState?.());
         });
 
-        this.app.post('/api/preset', (req,res) => {
+        this.app.post('/api/preset', async (req,res) => {
             if(!this.callbacks.setPreset) {
                 res.statusCode = 501;
                 res.send('setPreset callback not implemented');
                 return;
             }
             const {preset} = req.body;
-            this.callbacks.setPreset(preset);
+            await this.callbacks.setPreset(preset);
 
             res.json(this.callbacks.getState?.());
         });

@@ -15,7 +15,6 @@ export class AudioAdapter implements AudioPort {
         );
     }
 
-
     async playMode(mode: Mode, presetIndex: number): Promise<void> {
         const nextProvider = this.providers.get(mode);
         if(!nextProvider) {

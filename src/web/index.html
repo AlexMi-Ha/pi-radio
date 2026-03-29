@@ -397,13 +397,14 @@ radio_volume_slider.addEventListener('input', () => {
     currentlyInputingVolume = true;
 });
 
-for(let i = 0; i < iradio_preset_updates; ++i) {
+for(let i = 0; i < iradio_preset_updates.length; ++i) {
     iradio_preset_updates[i].addEventListener('click', async() => {
+        console.log('click')
         await api.setPresetForMode('internet_radio', i, iradio_preset_inputs[i].value);
     })
 }
 
-for(let i = 0; i < fm_preset_updates; ++i) {
+for(let i = 0; i < fm_preset_updates.length; ++i) {
     fm_preset_updates[i].addEventListener('click', async() => {
         await api.setPresetForMode('internet_radio', i, fm_preset_inputs[i].value);
     })

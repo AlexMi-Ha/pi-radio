@@ -1,5 +1,7 @@
 import { ApiAdapter } from "./adapters/api/ApiAdapter";
+import { AudioAdapter } from "./adapters/audio/AudioAdapter";
 import { MockAudioAdapter } from "./adapters/audio/MockAudioAdapter";
+import { InternetRadioAudioProvider } from "./adapters/audio/providers/InternetRadioAudioProvider";
 import { MockInputAdapter } from "./adapters/input/MockInputAdapter";
 import { MockOutputAdapter } from "./adapters/output/MockOutputAdapter";
 import { InMemoryPresetAdapter } from "./adapters/preset/InMemoryPresetAdapter";
@@ -19,8 +21,8 @@ const initialState: State = {
 // -----------
 const inputAdapter = new MockInputAdapter();
 const outputAdapter = new MockOutputAdapter();
-const audioAdapter = new MockAudioAdapter();
 const presetAdapter = new InMemoryPresetAdapter();
+const audioAdapter = new AudioAdapter([new InternetRadioAudioProvider(presetAdapter)]);
 const apiAdapter = new ApiAdapter(presetAdapter, 4200);
 
 // ----------

@@ -4,6 +4,6 @@ export interface AudioProvider {
 
     readonly mode: Mode;
 
-    start(source?: any): Promise<void>;
+    start(presetIndex: number): Promise<void>;
     stop() : Promise<void>;
 }

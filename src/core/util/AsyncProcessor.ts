@@ -7,12 +7,11 @@ export class AsyncProcessor {
 
     private timer?: NodeJS.Timeout;
 
-    runSafe(task: Task, debounceTime: number = 0) {
-        
+    runSafe(task: Task, debounceTime: number = 10) {
         if(debounceTime > 0) {
             if(this.timer) clearTimeout(this.timer);
             this.latestTask = task;
-            this.timer = setTimeout(() => this.process, debounceTime);
+            this.timer = setTimeout(() => this.process(), debounceTime);
         
         }else {
             this.latestTask = task;
