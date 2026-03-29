@@ -4,6 +4,7 @@ import { InternetRadioAudioProvider } from "./adapters/audio/providers/InternetR
 import { MockInputAdapter } from "./adapters/input/MockInputAdapter";
 import { MockOutputAdapter } from "./adapters/output/MockOutputAdapter";
 import { InMemoryPresetAdapter } from "./adapters/preset/InMemoryPresetAdapter";
+import { PersistentPresetAdapter } from "./adapters/preset/PersistentPresetAdapter";
 import { State } from "./core/models/State";
 import { RadioController } from "./core/services/RadioController";
 
@@ -20,8 +21,11 @@ const initialState: State = {
 // -----------
 const inputAdapter = new MockInputAdapter();
 const outputAdapter = new MockOutputAdapter();
-const presetAdapter = new InMemoryPresetAdapter();
+
+const presetAdapter = new PersistentPresetAdapter();
+
 const audioAdapter = new AudioAdapter([new InternetRadioAudioProvider(presetAdapter)]);
+
 const apiAdapter = new ApiAdapter(presetAdapter, 4200);
 
 // ----------
