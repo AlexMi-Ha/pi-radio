@@ -3,7 +3,6 @@ import { AudioAdapter } from "./adapters/audio/AudioAdapter";
 import { InternetRadioAudioProvider } from "./adapters/audio/providers/InternetRadioAudioProvider";
 import { MockInputAdapter } from "./adapters/input/MockInputAdapter";
 import { MockOutputAdapter } from "./adapters/output/MockOutputAdapter";
-import { InMemoryPresetAdapter } from "./adapters/preset/InMemoryPresetAdapter";
 import { PersistentPresetAdapter } from "./adapters/preset/PersistentPresetAdapter";
 import { State } from "./core/models/State";
 import { RadioController } from "./core/services/RadioController";
