@@ -16,6 +16,10 @@ export class InternetRadioAudioProvider implements AudioProvider {
     }
 
     async start(presetIndex: number): Promise<void> {
+        if(this.currentProcess) {
+            return;
+        }
+
         if(presetIndex < 0 || presetIndex > this.presetPort.getMaxPresetIndex()) {
             console.error('[Internet Radio] Error playing station ' + presetIndex + '. PresetIndex out of bounds!')
             return;
@@ -47,10 +51,15 @@ export class InternetRadioAudioProvider implements AudioProvider {
         });
     }
     async stop(): Promise<void> {
-        if(this.currentProcess) {
-            console.log("[Internet Radio] Stopping internet radio playback!");
+        if(!this.currentProcess) {
+            return;
+        }
+        try {
             this.currentProcess.kill();
             this.currentProcess = undefined;
+            console.log("[Internet Radio] Stopped internet radio playback!");
+        }catch {
+            console.error("[Internet Radio] Error stopping internet radio playback!");
         }
     }
 
