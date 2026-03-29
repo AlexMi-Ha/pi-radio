@@ -56,7 +56,7 @@ export class RadioController {
         this.inputPort.onModeSelect((m) => this.modeAsyncProcessor.runSafe(() => this.onSetMode(m)));
         this.inputPort.onPresetSelect((p) => this.presetAsyncProcessor.runSafe(() => this.onSetPreset(p)));
         this.inputPort.onVolumeChange((delta: number) => {
-            this.presetAsyncProcessor.runSafe(() => this.onSetVolume(this.state.volume + delta));
+            this.volumeAsyncProcessor.runSafe(() => this.onSetVolume(this.state.volume + delta));
         });
         this.inputPort.onPowerToggle(() => {
             if(this.state.power == "power") {
