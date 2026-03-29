@@ -1,3 +1,4 @@
+import { Mode } from "../../core/models/State";
 import { AudioPort } from "../../core/ports/AudioPort";
 
 export class MockAudioAdapter implements AudioPort {
@@ -5,9 +6,10 @@ export class MockAudioAdapter implements AudioPort {
     private currentStation: number | string | null = null;
     private volume: number = 50;
 
-    setVolume(volume: number): void {
+    setVolume(volume: number): Promise<void> {
         this.volume = Math.max(0, Math.min(100, volume));
         console.log(`[Audio] Volume set to ${this.volume}`);
+        return Promise.resolve();
     }
 
     playRadio(station: number | string): void {
@@ -34,10 +36,29 @@ export class MockAudioAdapter implements AudioPort {
         console.log(`[Audio] Spotify mode enabled at volume ${this.volume}`);
     }
 
-    stop(): void {
+    playMode(mode: Mode, source?: any): Promise<void> {
+        switch(mode) {
+            case "internet_radio":
+                this.playRadio(source);
+                break;
+            case "bluetooth":
+                this.playBluetooth();
+                break;
+            case "fm":
+                this.playFm(source);
+                break;
+            case "spotify":
+                this.playSpotify();
+                break;
+        }
+        return Promise.resolve();
+    }
+
+    stop(): Promise<void> {
         console.log(`[Audio] Stopped playback`);
         this.currentMode = null;
         this.currentStation = null;
+        return Promise.resolve();
     }
 
 }

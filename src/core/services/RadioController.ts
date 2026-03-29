@@ -4,6 +4,8 @@ import { AudioPort } from "../ports/AudioPort";
 import { InputPort } from "../ports/InputPort";
 import { OutputPort } from "../ports/OutputPort";
 import { PresetPort } from "../ports/PresetPort";
+import { AsyncProcessor } from "../util/AsyncProcessor";
+import { clamp } from "../util/util";
 
 export class RadioController {
     
@@ -12,6 +14,11 @@ export class RadioController {
     private audioPort : AudioPort;
     private apiPort: ApiPort;
     private presetPort: PresetPort;
+
+    private powerAsyncProcessor: AsyncProcessor;
+    private modeAsyncProcessor: AsyncProcessor;
+    private volumeAsyncProcessor: AsyncProcessor;
+    private presetAsyncProcessor: AsyncProcessor;
 
     private state: State;
 
@@ -29,7 +36,11 @@ export class RadioController {
         this.apiPort = params.apiPort;
         this.presetPort = params.presetPort;
         this.state = params.state;
-        console.log(this.state)
+
+        this.powerAsyncProcessor = new AsyncProcessor();
+        this.modeAsyncProcessor = new AsyncProcessor();
+        this.volumeAsyncProcessor = new AsyncProcessor();
+        this.presetAsyncProcessor = new AsyncProcessor();
     }
 
     public init() {
@@ -37,44 +48,44 @@ export class RadioController {
         this.configureApiAdapter();
 
         this.presetPort.onPresetsUpdated(() => {
-            this.onSetMode(this.state.mode, true);
+            this.modeAsyncProcessor.runSafe(() => this.onSetMode(this.state.mode, true), 50);
         })
     }
 
     private configureInputAdapter() {
-        this.inputPort.onModeSelect((m) => this.onSetMode(m));
-        this.inputPort.onPresetSelect((p) => this.onSetPreset(p));
+        this.inputPort.onModeSelect((m) => this.modeAsyncProcessor.runSafe(() => this.onSetMode(m), 50));
+        this.inputPort.onPresetSelect((p) => this.presetAsyncProcessor.runSafe(() => this.onSetPreset(p), 50));
         this.inputPort.onVolumeChange((delta: number) => {
-            this.onSetVolume(this.state.volume + delta);
+            this.presetAsyncProcessor.runSafe(() => this.onSetVolume(this.state.volume + delta), 50);
         });
         this.inputPort.onPowerToggle(() => {
             if(this.state.power == "power") {
-                this.onSetPower("idle");
+                this.powerAsyncProcessor.runSafe(() => this.onSetPower("idle"), 50);
             }else {
-                this.onSetPower("power");
+                this.powerAsyncProcessor.runSafe(() => this.onSetPower("power"), 50);
             }
         });
     }
 
     private configureApiAdapter() {
-        this.apiPort.onSetPower((p) => this.onSetPower(p));
+        this.apiPort.onSetPower((p) => this.powerAsyncProcessor.runSafe(() => this.onSetPower(p), 50));
         this.apiPort.onGetState(() => this.state);
-        this.apiPort.onSetMode((m) => this.onSetMode(m));
-        this.apiPort.onSetPreset((p) => this.onSetPreset(p));
-        this.apiPort.onSetVolume((v) => this.onSetVolume(v));
+        this.apiPort.onSetMode((m) => this.modeAsyncProcessor.runSafe(() => this.onSetMode(m),50));
+        this.apiPort.onSetPreset((p) => this.presetAsyncProcessor.runSafe(() => this.onSetPreset(p),50));
+        this.apiPort.onSetVolume((v) => this.volumeAsyncProcessor.runSafe(() => this.onSetVolume(v),50));
     }
 
-    private onSetPower(power: Power) : void {
+    private async onSetPower(power: Power) : Promise<void> {
         this.state.power = power;
         if(this.state.power == "idle") {
-            this.audioPort.stop();
+            await this.audioPort.stop();
             this.outputPort.idle();
         }else {
-            this.onSetMode(this.state.mode, true);
-            this.onSetVolume(this.state.volume);            
+            await this.onSetMode(this.state.mode, true);
+            await this.onSetVolume(this.state.volume);            
         }
     }
-    private onSetMode(mode: Mode, force: boolean = false): void {
+    private async onSetMode(mode: Mode, force: boolean = false): Promise<void> {
         if(mode == this.state.mode && !force) {
             return;
         }
@@ -82,29 +93,16 @@ export class RadioController {
 
         this.outputPort.setMode(this.state.mode);
 
-        this.audioPort.stop();
-        switch(this.state.mode) {
-            case "internet_radio":
-                this.outputPort.setPresetState(this.state.preset);
-                const presetUrl = this.presetPort.getValueByPreset("internet_radio", this.state.preset);
-                this.audioPort.playRadio(presetUrl);
-                break;
-            case "fm":
-                this.outputPort.setPresetState(this.state.preset);
-                const presetFreq = this.presetPort.getValueByPreset("fm" ,this.state.preset);
-                this.audioPort.playFm(+presetFreq);
-                break;
-            case "bluetooth":
-                this.outputPort.idlePresetState();
-                this.audioPort.playBluetooth();
-                break;
-            case "spotify":
-                this.outputPort.idlePresetState();
-                this.audioPort.playSpotify();
-                break;
+        if(this.state.mode == "internet_radio" || this.state.mode == "fm") {
+            this.outputPort.setPresetState(this.state.preset);
+        }else {
+            this.outputPort.idlePresetState();
         }
+
+        await this.audioPort.playMode(this.state.mode, this.state.preset);
     }
-    private onSetPreset(idx: number): void {
+
+    private async onSetPreset(idx: number): Promise<void> {
         if( !( this.state.mode == "internet_radio" || this.state.mode == "fm" )) {
             return;
         }
@@ -113,20 +111,12 @@ export class RadioController {
         }
         this.state.preset = idx;
         this.outputPort.setPresetState(idx);
-        this.audioPort.stop();
         
-        if(this.state.mode == "internet_radio") {
-            const presetUrl = this.presetPort.getValueByPreset("internet_radio", this.state.preset);
-            this.audioPort.playRadio(presetUrl);
-        }else {
-            const presetFreq = this.presetPort.getValueByPreset("fm" ,this.state.preset);
-            this.audioPort.playFm(+presetFreq);
-        }
+        await this.audioPort.playMode(this.state.mode, this.state.preset);
     }
 
-    private onSetVolume(vol: number): void {
-        const clampedVol = Math.min(Math.max(vol, 0), 100);
-        this.state.volume = clampedVol;
-        this.audioPort.setVolume(this.state.volume);
+    private async onSetVolume(vol: number): Promise<void> {
+        this.state.volume = clamp(0, 100, vol);
+        await this.audioPort.setVolume(this.state.volume);
     }
 }

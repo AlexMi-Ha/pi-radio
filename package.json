@@ -19,6 +19,7 @@
     "typescript": "^6.0.2"
   },
   "dependencies": {
+    "child_process": "^1.0.2",
     "express": "^5.2.1"
   }
 }
