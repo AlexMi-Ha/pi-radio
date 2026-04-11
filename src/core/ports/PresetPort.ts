@@ -1,16 +1,13 @@
-import { Mode } from "../models/State";
+import { Mode, PresetMode } from "../models/State";
 
 export interface PresetPort {
-    getValueByPreset(mode: "internet_radio" | "fm", presetIdx: number): string;
+    getValueByPreset(mode: PresetMode, presetIdx: number): string;
 
-    getAllPresets(): {
-        "internet_radio": string[]
-        "fm": string[]
-    };
+    getAllPresets(mode: PresetMode): string[];
 
-    getMaxPresetIndex(): number;
+    getNumPresets(mode: PresetMode): number;
 
-    setValueForPreset(mode: "internet_radio" | "fm", presetIdx: number, value: string): void;
+    setValueForPreset(mode: PresetMode, presetIdx: number, value: string): void;
 
     onPresetsUpdated(callback: () => void): void
 }

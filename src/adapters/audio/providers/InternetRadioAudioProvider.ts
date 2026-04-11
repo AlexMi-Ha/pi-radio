@@ -20,7 +20,7 @@ export class InternetRadioAudioProvider implements AudioProvider {
             return;
         }
 
-        if(presetIndex < 0 || presetIndex > this.presetPort.getMaxPresetIndex()) {
+        if(presetIndex < 0 || presetIndex > this.presetPort.getNumPresets("internet_radio")) {
             console.error('[Internet Radio] Error playing station ' + presetIndex + '. PresetIndex out of bounds!')
             return;
         }
