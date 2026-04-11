@@ -1,0 +1,34 @@
+name: Build Pi Image
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Build app
+        run: |
+          chmod +x build-app.sh
+          ./build-app.sh
+      - name: Build image
+        run: |
+          cd image-builder
+          chmod +x build-image.sh
+          sudo ./build-image.sh
+
+      - name: Upload release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: deploy/*.img.xz
