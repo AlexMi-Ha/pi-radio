@@ -1,6 +1,6 @@
 import express from "express";
 import path from "path";
-import { Power, Mode, State } from "../../core/models/State";
+import { Power, PresetMode ,Mode, State, isPresetMode, _presetModes } from "../../core/models/State";
 import { ApiPort } from "../../core/ports/ApiPort";
 import { PresetPort } from "../../core/ports/PresetPort";
 
@@ -113,12 +113,15 @@ export class ApiAdapter implements ApiPort {
         });
 
         this.app.get('/api/preset', (req, res) => {
-            const presets = this.presetPort.getAllPresets();
+            const presets = new Map<PresetMode, string[]>(); 
+            for(const presetMode of _presetModes) {
+                presets.set(presetMode, this.presetPort.getAllPresets(presetMode));
+            }
             res.json(presets);
         });
         this.app.get('/api/preset/:mode', (req, res) => {
             const mode = req.params.mode;
-            if(!(mode == "internet_radio" || mode == "fm")) {
+            if(!isPresetMode(mode)) {
                 res.statusCode = 400;
                 res.send("Unknown radio mode for presets");
                 return;
@@ -129,13 +132,13 @@ export class ApiAdapter implements ApiPort {
         this.app.get('/api/preset/:mode/:presetId', (req, res) => {
             const mode = req.params.mode;
             const presetId = Number.parseInt(req.params.presetId, 10);
-            if(!(mode == "internet_radio" || mode == "fm")) {
+            if(!isPresetMode(mode)) {
                 res.statusCode = 400;
                 res.send("Unknown radio mode for presets");
                 return;
             }
             const presets = this.getPresetsOfMode(mode);
-            if(Number.isNaN(presetId) || presetId < 0 || presetId > this.presetPort.getMaxPresetIndex() || presetId > presets.length - 1) {
+            if(Number.isNaN(presetId) || presetId < 0 || presetId > this.presetPort.getNumPresets(mode) || presetId > presets.length - 1) {
                 res.statusCode = 400;
                 res.send("Invalid presetId");
                 return;
@@ -148,13 +151,13 @@ export class ApiAdapter implements ApiPort {
             const mode = req.params.mode;
             const presetId = Number.parseInt(req.params.presetId, 10);
             const {value} = req.body;
-            if(!(mode == "internet_radio" || mode == "fm")) {
+            if(!isPresetMode(mode)) {
                 res.statusCode = 400;
                 res.send("Unknown radio mode for presets");
                 return;
             }
             const presets = this.getPresetsOfMode(mode);
-            if(Number.isNaN(presetId) || presetId < 0 || presetId > this.presetPort.getMaxPresetIndex() || presetId > presets.length - 1) {
+            if(Number.isNaN(presetId) || presetId < 0 || presetId > this.presetPort.getNumPresets(mode) || presetId > presets.length - 1) {
                 res.statusCode = 400;
                 res.send("Invalid presetId");
                 return;
@@ -170,12 +173,7 @@ export class ApiAdapter implements ApiPort {
         });
     }
 
-    private getPresetsOfMode(mode: Mode): string[] {
-        const presets = this.presetPort.getAllPresets();
-        if(mode == "internet_radio") {
-            return presets.internet_radio;
-        }else {
-            return presets.fm;
-        }
+    private getPresetsOfMode(mode: PresetMode): string[] {
+        return this.presetPort.getAllPresets(mode);
     }
 }

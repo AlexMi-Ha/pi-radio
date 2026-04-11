@@ -1,35 +1,30 @@
+import { _presetModes, PresetMode } from "../../core/models/State";
 import { PresetPort } from "../../core/ports/PresetPort";
 
 export class InMemoryPresetAdapter implements PresetPort {
 
     onUpdatedCallback?: () => void;
 
-    private radioPresets: string[] = ["", "", "", "", ""];
-    private fmPresets: string[] = ["", "", "", "", ""];
+    private presets = new Map<PresetMode, string[]>();
+
+    constructor() {
+        for(const presetMode of _presetModes) {
+            this.presets.set(presetMode, ["", "", "", "", ""])
+        }
+    }
 
 
-    getValueByPreset(mode: "internet_radio" | "fm", presetIdx: number): string {
-        if(mode == "internet_radio") {
-            return this.radioPresets[presetIdx]!;
-        }else {
-            return this.fmPresets[presetIdx]!;
-        }
+    getValueByPreset(mode: PresetMode, presetIdx: number): string {
+        return this.presets.get(mode)![presetIdx] ?? "";
     }
-    getAllPresets(): { "internet_radio": string[]; "fm": string[]; } {
-        return {
-            "internet_radio": this.radioPresets,
-            "fm": this.fmPresets
-        }
+    getAllPresets(mode: PresetMode): string[] {
+        return this.presets.get(mode)!;
     }
-    getMaxPresetIndex(): number {
-        return this.radioPresets.length;
+    getNumPresets(mode: PresetMode): number {
+        return this.presets.get(mode)!.length;
     }
-    setValueForPreset(mode: "internet_radio" | "fm", presetIdx: number, value: string): void {
-        if(mode == "internet_radio") {
-            this.radioPresets[presetIdx] = value;
-        }else {
-            this.fmPresets[presetIdx] = value;
-        }
+    setValueForPreset(mode: PresetMode, presetIdx: number, value: string): void {
+        this.presets.get(mode)![presetIdx] = value;
         this.onUpdatedCallback?.()
     }
 

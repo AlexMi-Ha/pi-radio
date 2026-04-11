@@ -3,16 +3,10 @@
 import { PresetPort } from "../../core/ports/PresetPort";
 import fs from "fs";
 import path from "path";
-
-type Mode = "internet_radio" | "fm";
-
-interface PresetData {
-  internet_radio: string[];
-  fm: string[];
-}
+import { _presetModes, PresetMode } from "../../core/models/State";
 
 export class PersistentPresetAdapter implements PresetPort {
-  private presets: PresetData;
+  private presets: Map<PresetMode, string[]>;
   private readonly filePath: string;
   private onUpdatedCallback?: () => void;
   private readonly maxPresets = 5;
@@ -23,7 +17,7 @@ export class PersistentPresetAdapter implements PresetPort {
     if (fs.existsSync(this.filePath)) {
       try {
         const data = fs.readFileSync(this.filePath, "utf-8");
-        this.presets = JSON.parse(data) as PresetData;
+        this.presets = JSON.parse(data) as Map<PresetMode, string[]>;
       } catch (err) {
         console.warn("[Preset] Failed to read presets file, initializing empty presets", err);
         this.presets = this.initEmptyPresets();
@@ -34,11 +28,12 @@ export class PersistentPresetAdapter implements PresetPort {
     }
   }
 
-  private initEmptyPresets(): PresetData {
-    return {
-      internet_radio: Array(this.maxPresets).fill(""),
-      fm: Array(this.maxPresets).fill(""),
-    };
+  private initEmptyPresets(): Map<PresetMode, string[]> {
+    const presets = new Map<PresetMode, string[]>();
+    for(const presetMode of _presetModes) {
+      presets.set(presetMode, []);
+    } 
+    return presets;
   }
 
   private saveToFile(): void {
@@ -49,25 +44,39 @@ export class PersistentPresetAdapter implements PresetPort {
     }
   }
 
-  getValueByPreset(mode: Mode, presetIdx: number): string {
-    return this.presets[mode][presetIdx] || "";
+  getValueByPreset(mode: PresetMode, presetIdx: number): string {
+    this.initPresetIfNotExist(mode);
+    return this.presets.get(mode)![presetIdx] || "";
   }
 
-  getAllPresets(): { internet_radio: string[]; fm: string[] } {
-    return { ...this.presets };
+  getAllPresets(mode: PresetMode): string[] {
+    this.initPresetIfNotExist(mode);
+    return this.presets.get(mode)!;
   }
 
-  getMaxPresetIndex(): number {
-    return this.maxPresets;
+  getNumPresets(mode: PresetMode): number {
+    this.initPresetIfNotExist(mode);
+    return this.presets.get(mode)!.length;
   }
 
-  setValueForPreset(mode: Mode, presetIdx: number, value: string): void {
-    this.presets[mode][presetIdx] = value;
+  setValueForPreset(mode: PresetMode, presetIdx: number, value: string): void {
+    if(!this.presets.has(mode)) {
+      this.presets.set(mode, []);
+    }
+    this.presets.get(mode)![presetIdx] = value;
     this.saveToFile();
     this.onUpdatedCallback?.();
   }
 
   onPresetsUpdated(callback: () => void): void {
     this.onUpdatedCallback = callback;
+  }
+
+  private initPresetIfNotExist(mode: PresetMode) {
+    if(this.presets.has(mode)) {
+      return;
+    }
+    this.presets.set(mode, []);
+    this.saveToFile();
   }
 }
