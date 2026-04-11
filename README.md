@@ -1,6 +1,6 @@
 # Smart Kitchen Radio
 
-A modular Node.js-based audio player for your kitchen, supporting Internet radio, Bluetooth, FM, and Spotify. Designed with **Ports & Adapters (Hexagonal) architecture**, allowing easy development, testing, and hardware integration.
+A modular Node.js-based audio player for your kitchen, supporting Internet radio, Bluetooth and FM. Designed with **Ports & Adapters (Hexagonal) architecture**, allowing easy development, testing, and hardware integration.
 
 ---
 
@@ -10,7 +10,6 @@ A modular Node.js-based audio player for your kitchen, supporting Internet radio
   - Internet Radio
   - Bluetooth Audio
   - FM Radio
-  - Spotify
 - **Controls**
   - Rotary encoder for volume
   - Buttons for mode selection and favorite stations
@@ -165,7 +164,7 @@ The Kitchen Radio exposes a REST API for controlling power, mode, volume, and pr
 This API allows full remote control of the radio:
 
 - Change power idle/power
-- Switch modes (internet radio / FM / Bluetooth / Spotify)
+- Switch modes (internet radio / FM / Bluetooth)
 - Adjust volume
 - Program and retrieve favourite stations
 
