@@ -52,7 +52,7 @@ export class MockInputAdapter implements InputPort {
                     break;
 
                 case "m":
-                    if (arg == "internet_radio" || arg == "fm" || arg == "bluetooth" || arg == "spotify") this.modeCallback?.(arg);
+                    if (arg == "internet_radio" || arg == "fm" || arg == "bluetooth") this.modeCallback?.(arg);
                     break;
 
                 case "f":
