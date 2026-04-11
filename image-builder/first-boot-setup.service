@@ -1,0 +1,11 @@
+[Unit]
+Description=Pi Radio First Boot Setup
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/pi-radio/first-boot-setup.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
