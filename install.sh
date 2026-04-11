@@ -1,46 +1,31 @@
-#!/bin/bash
-
+#!/usr/bin/env bash
 set -e
 
-echo "=== Kitchen Radio Installer ==="
-
-# Check Node.js
-if ! command -v node &> /dev/null
-then
-    echo "Node.js not found. Installing..."
-    curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
-    sudo apt update
-    sudo apt install -y nodejs npm
-else
-    echo "Node.js is installed: $(node -v)"
+if [ ! -d "/opt/pi-radio" ]; then
+    echo "ERROR: /opt/pi-radio does not exist."
+    echo "It is recommended that this script runs inside the prebuilt Pi image where the app directory is already provisioned."
+    exit 1
 fi
 
-# Check npm
-if ! command -v npm &> /dev/null
-then
-    echo "npm not found. Installing..."
-    sudo apt update
-    sudo apt install -y npm
-else
-    echo "npm is installed: $(npm -v)"
-fi
+echo "== Installing dependencies =="
+apt-get update
+apt-get install -y \
+    curl \
+    alsa-utils \
+    mpv
 
-# Check mpv
-if ! command -v mpv &> /dev/null
-then
-    echo "mpv not found. Installing..."
-    sudo apt update
-    sudo apt install -y mpv
-else
-    echo "mpv is installed: $(mpv --version | head -n 1)"
-fi
 
-# Install Node dependencies
-echo "Installing Node.js dependencies..."
-npm install
+echo "== Installing Node.js =="
+curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
+apt-get install -y nodejs npm
 
-# Build the project
-echo "Building the project..."
-npm run build
+echo "== Installing app =="
+cd /opt/pi-radio
+npm ci --production
 
-echo "=== Installation Complete! ==="
+echo "== Installing systemd services =="
+cp files/pi-radio.service /etc/systemd/system/
+
+systemctl enable pi-radio
+
+echo "== Done =="
