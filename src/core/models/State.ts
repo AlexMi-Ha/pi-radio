@@ -1,4 +1,4 @@
-export type Mode = "internet_radio" | "bluetooth" | "fm" | "spotify";
+export type Mode = "internet_radio" | "bluetooth" | "fm";
 export type Power = "power" | "idle";
 
 export class State {

@@ -97,7 +97,6 @@
                     <button class="mode-button active" id="mode_btn_iradio">Internet Radio</button>
                     <button class="mode-button" id="mode_btn_fmradio">FM Radio</button>
                     <button class="mode-button" id="mode_btn_bt">Bluetooth</button>
-                    <button class="mode-button" id="mode_btn_spotify">Spotify</button>
                 </nav>
                 <div class="mode-content active" id="mode_iradio">
                     <div id="iradio_preset_group">
@@ -131,10 +130,6 @@
                 <div class="mode-content" id="mode_bt">
                     <p>Open for incoming Bluetooth connections!</p>
                 </div>
-                <div class="mode-content" id="mode_spotify">
-                    <p>Open for incoming Spotify connections</p>
-                </div>
-
 
                 <div id="radio-volume-container">
                     <input type="range" min="0" max="100" value="50" id="radio_volume_slider">
@@ -201,12 +196,10 @@ const powerContainer = document.getElementById('power');
 const btn_iradio = document.getElementById('mode_btn_iradio');
 const btn_fmradio = document.getElementById('mode_btn_fmradio');
 const btn_bt = document.getElementById('mode_btn_bt');
-const btn_spotify = document.getElementById('mode_btn_spotify');
 
 const cont_iradio = document.getElementById('mode_iradio');
 const cont_fmradio = document.getElementById('mode_fmradio');
 const cont_bt = document.getElementById('mode_bt');
-const cont_spotify = document.getElementById('mode_spotify');
 
 const iradio_preset_btns = [
     document.getElementById('iradio_preset_0'),
@@ -325,8 +318,8 @@ async function getPresetValues() {
 }
 
 function setMode(mode) {
-    setElementAtive(false, btn_iradio, btn_fmradio, btn_bt, btn_spotify);
-    setElementVisibility(false, cont_iradio, cont_fmradio, cont_bt, cont_spotify);
+    setElementAtive(false, btn_iradio, btn_fmradio, btn_bt);
+    setElementVisibility(false, cont_iradio, cont_fmradio, cont_bt);
     setElementVisibility(false, fm_preset_values_container, iradio_preset_values_container)
     if(mode == "internet_radio") {
         setElementAtive(true, btn_iradio);
@@ -339,9 +332,6 @@ function setMode(mode) {
     }else if(mode == "bluetooth") {
         setElementAtive(true, btn_bt);
         setElementVisibility(true, cont_bt);
-    }else if(mode == "spotify") {
-        setElementAtive(true, btn_spotify);
-        setElementVisibility(true, cont_spotify);
     }
 }
 
@@ -367,10 +357,6 @@ btn_fmradio.addEventListener('click', async () => {
 });
 btn_bt.addEventListener('click', async () => {
     const state = await api.setMode('bluetooth');
-    await updateState(state);
-});
-btn_spotify.addEventListener('click', async () => {
-    const state = await api.setMode('spotify');
     await updateState(state);
 });
 
