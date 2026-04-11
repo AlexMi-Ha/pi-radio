@@ -2,3 +2,8 @@
 node_modules/
 dist/
 presets.json
+
+deploy/
+image-builder/mnt
+*.img
+*.img.xz
