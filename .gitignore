@@ -3,6 +3,8 @@ node_modules/
 dist/
 presets.json
 
+coverage
+
 deploy/
 image-builder/mnt
 *.img

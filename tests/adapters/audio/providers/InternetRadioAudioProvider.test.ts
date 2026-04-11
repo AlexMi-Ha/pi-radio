@@ -100,7 +100,7 @@ describe('InternetRadioAudioProvider', () => {
 
         await provider.stop();
 
-        expect(console.log).toHaveBeenCalledWith('[Internet Radio] Stopping internet radio playback!');
+        expect(console.log).toHaveBeenCalledWith('[Internet Radio] Stopped internet radio playback!');
         expect(mockProcess.kill).toHaveBeenCalled();
         expect((provider as any).currentProcess).toBeUndefined();
     });
@@ -108,7 +108,7 @@ describe('InternetRadioAudioProvider', () => {
     test('stop does nothing if no current process', async () => {
         await provider.stop();
 
-        expect(console.log).not.toHaveBeenCalledWith('[Internet Radio] Stopping internet radio playback!');
+        expect(console.log).not.toHaveBeenCalledWith('[Internet Radio] Stopped internet radio playback!');
         // no error thrown
     });
 });
