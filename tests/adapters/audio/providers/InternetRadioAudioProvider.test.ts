@@ -22,7 +22,7 @@ describe('InternetRadioAudioProvider', () => {
         (spawn as jest.Mock).mockReturnValue(mockProcess);
 
         presetPort = {
-            getMaxPresetIndex: jest.fn().mockReturnValue(5),
+            getNumPresets: jest.fn().mockReturnValue(5),
             getValueByPreset: jest.fn()
         };
 
