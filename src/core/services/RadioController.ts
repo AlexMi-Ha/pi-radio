@@ -1,4 +1,4 @@
-import { Mode, Power, State } from "../models/State";
+import { isPresetMode, Mode, Power, State } from "../models/State";
 import { ApiPort } from "../ports/ApiPort";
 import { AudioPort } from "../ports/AudioPort";
 import { InputPort } from "../ports/InputPort";
@@ -103,7 +103,7 @@ export class RadioController {
     }
 
     private async onSetPreset(idx: number): Promise<void> {
-        if( !( this.state.mode == "internet_radio" || this.state.mode == "fm" )) {
+        if( !isPresetMode(this.state.mode)) {
             return;
         }
         if(this.state.preset == idx) {
