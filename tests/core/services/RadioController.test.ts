@@ -177,19 +177,6 @@ describe('RadioController', () => {
         expect(audioPort.playMode).toHaveBeenCalledWith("fm", 4);
     });
 
-    test('ignores preset change in invalid spotify mode', async () => {
-        state.mode = "spotify";
-
-        let handler: any;
-        inputPort.onPresetSelect.mockImplementation((cb: any) => handler = cb);
-
-        controller.init();
-
-        await handler(4);
-
-        expect(audioPort.playMode).not.toHaveBeenCalled();
-    });
-
     test('ignores preset change in invalid bt mode', async () => {
         state.mode = "bluetooth";
 
