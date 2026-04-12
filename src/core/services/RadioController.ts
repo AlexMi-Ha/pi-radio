@@ -1,11 +1,11 @@
-import { isPresetMode, Mode, Power, State } from "../models/State";
+import { FM_FREQ_MAX, FM_FREQ_MIN, isPresetMode, Mode, Power, State } from "../models/State";
 import { ApiPort } from "../ports/ApiPort";
 import { AudioPort } from "../ports/AudioPort";
 import { InputPort } from "../ports/InputPort";
 import { OutputPort } from "../ports/OutputPort";
 import { PresetPort } from "../ports/PresetPort";
 import { AsyncProcessor } from "../util/AsyncProcessor";
-import { clamp } from "../util/util";
+import { clamp, wrap } from "../util/util";
 
 export class RadioController {
     
@@ -18,6 +18,7 @@ export class RadioController {
     private powerAsyncProcessor: AsyncProcessor;
     private modeAsyncProcessor: AsyncProcessor;
     private volumeAsyncProcessor: AsyncProcessor;
+    private fmFreqAsyncProcessor: AsyncProcessor;
     private presetAsyncProcessor: AsyncProcessor;
 
     private state: State;
@@ -40,6 +41,7 @@ export class RadioController {
         this.powerAsyncProcessor = new AsyncProcessor();
         this.modeAsyncProcessor = new AsyncProcessor();
         this.volumeAsyncProcessor = new AsyncProcessor();
+        this.fmFreqAsyncProcessor = new AsyncProcessor();
         this.presetAsyncProcessor = new AsyncProcessor();
     }
 
@@ -57,6 +59,9 @@ export class RadioController {
         this.inputPort.onPresetSelect((p) => this.presetAsyncProcessor.runSafe(() => this.onSetPreset(p)));
         this.inputPort.onVolumeChange((delta: number) => {
             this.volumeAsyncProcessor.runSafe(() => this.onSetVolume(this.state.volume + delta));
+        });
+        this.inputPort.onFMFrequencyChange((delta: number) => {
+            this.fmFreqAsyncProcessor.runSafe(() => this.onSetFmFreq(delta))
         });
         this.inputPort.onPowerToggle(() => {
             if(this.state.power == "power") {
@@ -91,12 +96,20 @@ export class RadioController {
         }
         this.state.mode = mode;
 
+        if(!isPresetMode(this.state.mode) || this.presetPort.getNumPresets(this.state.mode) <= this.state.preset) {
+            this.state.preset = 1;
+        }
+
         this.outputPort.setMode(this.state.mode);
 
-        if(this.state.mode == "internet_radio" || this.state.mode == "fm") {
+        if(isPresetMode(this.state.mode)) {
             this.outputPort.setPresetState(this.state.preset);
         }else {
             this.outputPort.idlePresetState();
+        }
+
+        if(this.state.mode == "fm") {
+            this.updateFreqStateToPreset();
         }
 
         await this.audioPort.playMode(this.state.mode, this.state.preset);
@@ -111,6 +124,10 @@ export class RadioController {
         }
         this.state.preset = idx;
         this.outputPort.setPresetState(idx);
+
+        if(this.state.mode == "fm") {
+            this.updateFreqStateToPreset();
+        }
         
         await this.audioPort.playMode(this.state.mode, this.state.preset);
     }
@@ -118,5 +135,19 @@ export class RadioController {
     private async onSetVolume(vol: number): Promise<void> {
         this.state.volume = clamp(0, 100, vol);
         await this.audioPort.setVolume(this.state.volume);
+    }
+
+    private async onSetFmFreq(delta: number): Promise<void> {
+        if(this.state.mode != "fm") {
+            return;
+        }
+        this.state.freq = wrap(FM_FREQ_MIN, FM_FREQ_MAX, this.state.freq, delta);
+        this.outputPort.idlePresetState();
+        await this.audioPort.playFMFreq(this.state.freq);
+    }
+
+    private updateFreqStateToPreset() {
+        const presetFreq = parseInt(this.presetPort.getValueByPreset('fm', this.state.preset), 10);
+        this.state.freq = Number.isNaN(presetFreq) ? 88 : presetFreq;
     }
 }

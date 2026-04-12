@@ -5,6 +5,11 @@ export class MockAudioAdapter implements AudioPort {
     private currentMode: string | null = null;
     private currentStation: number | string | null = null;
     private volume: number = 50;
+    
+    playFMFreq(freq: number): Promise<void> {
+        this.playFm(freq);
+        return Promise.resolve();
+    }
 
     setVolume(volume: number): Promise<void> {
         this.volume = Math.max(0, Math.min(100, volume));

@@ -7,6 +7,7 @@ export class MockInputAdapter implements InputPort {
     private modeCallback?: (mode: Mode) => void;
     private presetCallback?: (id: number) => void;
     private powerCallback?: () => void;
+    private fmFreqCallback?: (delta: number) => void;
 
     private rl: readline.Interface;
 
@@ -15,6 +16,9 @@ export class MockInputAdapter implements InputPort {
             input: process.stdin,
             output: process.stdout,
         });
+    }
+    onFMFrequencyChange(callback: (delta: number) => void): void {
+        this.fmFreqCallback = callback;
     }
 
     onVolumeChange(callback: (delta: number) => void): void {
