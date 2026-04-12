@@ -26,7 +26,8 @@ describe('RadioController', () => {
             onModeSelect: jest.fn(),
             onPresetSelect: jest.fn(),
             onVolumeChange: jest.fn(),
-            onPowerToggle: jest.fn()
+            onPowerToggle: jest.fn(),
+            onFMFrequencyChange: jest.fn()
         };
 
         outputPort = {
@@ -38,6 +39,7 @@ describe('RadioController', () => {
 
         audioPort = {
             playMode: jest.fn().mockResolvedValue(undefined),
+            playFMFreq: jest.fn().mockResolvedValue(undefined),
             stop: jest.fn().mockResolvedValue(undefined),
             setVolume: jest.fn().mockResolvedValue(undefined)
         };
@@ -51,7 +53,9 @@ describe('RadioController', () => {
         };
 
         presetPort = {
-            onPresetsUpdated: jest.fn()
+            onPresetsUpdated: jest.fn(),
+            getNumPresets: jest.fn().mockResolvedValue(2),
+            getValueByPreset: jest.fn().mockResolvedValue(1)
         };
 
         state = {
