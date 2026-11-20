@@ -1,6 +1,6 @@
 # Smart Kitchen Radio
 
-A modular Node.js-based audio player for your kitchen, supporting Internet radio, Bluetooth and FM. Designed with **Ports & Adapters (Hexagonal) architecture**, allowing easy development, testing, and hardware integration.
+A modular Node.js-based audio player for your kitchen, supporting Internet radio and Bluetooth. Designed with **Ports & Adapters (Hexagonal) architecture**, allowing easy development, testing, and hardware integration.
 
 ---
 
@@ -9,11 +9,10 @@ A modular Node.js-based audio player for your kitchen, supporting Internet radio
 - **Audio Modes**
   - Internet Radio
   - Bluetooth Audio
-  - FM Radio
 - **Controls**
   - Rotary encoder for volume
-  - Buttons for mode selection and favorite stations
-  - Optional RGB LED for network / system status
+  - Buttons for power, mode toggle, and preset/pairing
+  - LEDs for mode and preset/pairing status, plus a 16x2 LCD for station/track info
 - **Web UI & API**
   - Configure favorite stations and network
   - REST API to control device programmatically
@@ -44,16 +43,20 @@ npm run dev
 - Console output simulates LEDs/audio.
 
 ## Raspberry Pi Deployment
-tbd
+See [`deploy/README.md`](deploy/README.md): flash a stock Raspberry Pi OS
+image with Raspberry Pi Imager (hostname/SSH/WiFi configured at flash time),
+then run `./deploy/provision.sh pi@<hostname>.local` to build and deploy the
+app. The guide also covers locking the filesystem to read-only to protect
+against power-loss corruption, and how to redeploy updates afterward.
 
 
 # Usage
 ## Hardware
 - Volume: Rotate encoder
-- Mode: Press mode buttons
-- Favorites: Press favorite buttons
+- Mode: Press the mode-toggle button (cycles Internet Radio / Bluetooth)
+- Action button: cycles presets in Internet Radio mode, triggers Bluetooth pairing in Bluetooth mode
 - Power/Idle: Toggle idle state with designated button
-- LEDs reflect current mode, favorites, and network status
+- LEDs reflect current mode and preset/pairing status; the LCD shows station/track info
 
 ## REST API Example
 The Kitchen Radio exposes a REST API for controlling power, mode, volume, and presets. All endpoints are JSON-based. The API is hosted on the port specified when creating the ApiAdapter (e.g., http://localhost:4200).
@@ -70,7 +73,9 @@ The Kitchen Radio exposes a REST API for controlling power, mode, volume, and pr
   "power": "power",
   "mode": "internet_radio",
   "volume": 70,
-  "preset": 1
+  "preset": 1,
+  "pairing": false,
+  "nowPlaying": { "title": "Artist - Song" }
 }
 ```
 
@@ -127,15 +132,14 @@ The Kitchen Radio exposes a REST API for controlling power, mode, volume, and pr
 - Response:
 ```json
 {
-  "internet_radio": ["http://station1.com", "http://station2.com", "", "", ""],
-  "fm": ["101.1", "102.3", "", "", ""]
+  "internet_radio": ["http://station1.com", "http://station2.com", "", "", ""]
 }
 ```
 
 ### Get Presets By Mode
 
 - Endpoint: GET /api/preset/:mode
-- :mode can be "internet_radio" or "fm"
+- :mode can only be "internet_radio" (the only mode with presets)
 - Response:
 ```json
 ["http://station1.com", "http://station2.com", "", "", ""]
@@ -164,7 +168,7 @@ The Kitchen Radio exposes a REST API for controlling power, mode, volume, and pr
 This API allows full remote control of the radio:
 
 - Change power idle/power
-- Switch modes (internet radio / FM / Bluetooth)
+- Switch modes (internet radio / Bluetooth)
 - Adjust volume
 - Program and retrieve favourite stations
 
