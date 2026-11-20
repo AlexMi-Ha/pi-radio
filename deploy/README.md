@@ -51,6 +51,45 @@ the `pi-radio` systemd service (auto-starts on boot, restarts on crash).
 
 Open `http://pi-radio.local:4200/` to confirm it's running.
 
+This also enables the I2C interface (`raspi-config nonint do_i2c 0`) and sets
+`PI_RADIO_USE_HARDWARE=true` in `/etc/default/pi-radio`, which switches the
+app from the console-logging mock input/display adapters (used by `npm run
+dev`) to the real GPIO buttons/encoder and I2C LCD adapters.
+
+### Hardware configuration
+
+Buttons, the rotary encoder, and the LCD's I2C bus/address are configured via
+environment variables (set in `/etc/default/pi-radio` alongside
+`PI_RADIO_PRESETS_PATH`), each with a default placeholder value:
+
+| Variable                  | Default | Meaning                          |
+|---------------------------|---------|-----------------------------------|
+| `PI_RADIO_GPIO_POWER_BTN` | `17`    | Power button GPIO (BCM numbering) |
+| `PI_RADIO_GPIO_MODE_BTN`  | `27`    | Mode button GPIO                  |
+| `PI_RADIO_GPIO_ACTION_BTN`| `22`    | Action button GPIO                |
+| `PI_RADIO_GPIO_ENCODER_A` | `23`    | Rotary encoder A (quadrature) GPIO|
+| `PI_RADIO_GPIO_ENCODER_B` | `24`    | Rotary encoder B (quadrature) GPIO|
+| `PI_RADIO_I2C_BUS`        | `1`     | I2C bus number (`/dev/i2c-1`)     |
+| `PI_RADIO_I2C_LCD_ADDRESS`| `0x27`  | PCF8574 LCD backpack I2C address  |
+
+Buttons are assumed wired momentary-push-to-GND with the Pi's internal
+pull-up enabled (active-low, no external resistors needed). Before first
+deploying with real hardware, wire the LCD and confirm its I2C address with:
+
+```bash
+ssh pi@pi-radio.local
+i2cdetect -y 1
+```
+
+`0x27` and `0x3F` are the two common PCF8574 backpack addresses - if yours
+differs, set `PI_RADIO_I2C_LCD_ADDRESS` in `/etc/default/pi-radio` and
+restart the service (`sudo systemctl restart pi-radio`).
+
+> Real-hardware behavior (button feel/debounce tuning, encoder direction,
+> LCD contrast/address) has not been verified against physical hardware -
+> confirm all of this after deploying to an actual Pi with the parts wired
+> up.
+
 ## 4. Lock down the filesystem (read-only root)
 
 Once you're happy with the deployed version, protect the SD card from

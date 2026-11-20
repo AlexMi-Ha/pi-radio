@@ -46,6 +46,13 @@ cmd_deploy() {
     apt-get update
     apt-get install -y curl mpv alsa-utils bluez
 
+    echo "== Enabling I2C interface (for the LCD display) =="
+    if command -v raspi-config >/dev/null 2>&1; then
+        raspi-config nonint do_i2c 0
+    else
+        echo "raspi-config not found; enable I2C manually if using the LCD display." >&2
+    fi
+
     if ! command -v node >/dev/null 2>&1 || [ "$(node -v | sed 's/^v//' | cut -d. -f1)" -lt 20 ]; then
         echo "== Installing Node.js =="
         curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
@@ -67,7 +74,10 @@ cmd_deploy() {
     echo "== Setting up persistent preset storage on $bdir =="
     mkdir -p "$bdir/pi-radio"
     chown "$APP_USER:$APP_USER" "$bdir/pi-radio"
-    echo "PI_RADIO_PRESETS_PATH=$bdir/pi-radio/presets.json" > "$ENV_FILE"
+    {
+        echo "PI_RADIO_PRESETS_PATH=$bdir/pi-radio/presets.json"
+        echo "PI_RADIO_USE_HARDWARE=true"
+    } > "$ENV_FILE"
 
     echo "== Installing systemd service =="
     cp "$staging_dir/pi-radio.service" "/etc/systemd/system/$SERVICE_NAME.service"
