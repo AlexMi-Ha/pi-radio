@@ -1,5 +1,4 @@
 import { AudioAdapter } from '../../../src/adapters/audio/AudioAdapter';
-import { AudioProvider } from '../../../src/adapters/audio/AudioProvider';
 import { Mode } from '../../../src/core/models/State';
 import { exec } from 'child_process';
 
@@ -15,14 +14,16 @@ describe('AudioAdapter', () => {
 
     beforeEach(() => {
         providerA = {
-            mode: 'fm' as Mode,
-            start: jest.fn().mockResolvedValue(undefined),
-            stop: jest.fn().mockResolvedValue(undefined)
-        };
-        providerB = {
             mode: 'internet_radio' as Mode,
             start: jest.fn().mockResolvedValue(undefined),
-            stop: jest.fn().mockResolvedValue(undefined)
+            stop: jest.fn().mockResolvedValue(undefined),
+            onNowPlayingChanged: jest.fn()
+        };
+        providerB = {
+            mode: 'bluetooth' as Mode,
+            start: jest.fn().mockResolvedValue(undefined),
+            stop: jest.fn().mockResolvedValue(undefined),
+            enablePairing: jest.fn().mockResolvedValue(undefined)
         };
 
         (exec as jest.Mock).mockReset();
@@ -35,20 +36,20 @@ describe('AudioAdapter', () => {
     // ------------------------
 
     test('plays a mode with correct provider', async () => {
-        await adapter.playMode('fm', 3);
+        await adapter.playMode('internet_radio', 3);
 
         expect(providerA.start).toHaveBeenCalledWith(3);
         expect(providerB.start).not.toHaveBeenCalled();
     });
 
     test('throws if no provider for mode', async () => {
-        await expect(adapter.playMode('bluetooth' as Mode, 0))
-            .rejects.toThrow('No audio provider found for bluetooth');
+        await expect(adapter.playMode('unknown' as Mode, 0))
+            .rejects.toThrow('No audio provider found for unknown');
     });
 
     test('stops previous provider before starting new', async () => {
-        await adapter.playMode('fm', 1);
-        await adapter.playMode('internet_radio', 2);
+        await adapter.playMode('internet_radio', 1);
+        await adapter.playMode('bluetooth', 2);
 
         expect(providerA.stop).toHaveBeenCalled();
         expect(providerB.start).toHaveBeenCalledWith(2);
@@ -56,8 +57,8 @@ describe('AudioAdapter', () => {
     });
 
     test('does stop provider if same mode played again', async () => {
-        await adapter.playMode('fm', 1);
-        await adapter.playMode('fm', 2);
+        await adapter.playMode('internet_radio', 1);
+        await adapter.playMode('internet_radio', 2);
 
         expect(providerA.stop).toHaveBeenCalledTimes(1);
         expect(providerA.start).toHaveBeenCalledWith(2);
@@ -68,7 +69,7 @@ describe('AudioAdapter', () => {
     // ------------------------
 
     test('stop calls current provider stop', async () => {
-        await adapter.playMode('fm', 1);
+        await adapter.playMode('internet_radio', 1);
         await adapter.stop();
 
         expect(providerA.stop).toHaveBeenCalledTimes(1);
@@ -76,9 +77,42 @@ describe('AudioAdapter', () => {
 
     test('stop does nothing if no current provider', async () => {
         await adapter.stop();
-        
+
         expect(providerA.stop).not.toHaveBeenCalled();
         expect(providerB.stop).not.toHaveBeenCalled();
+    });
+
+    // ------------------------
+    // enablePairing
+    // ------------------------
+
+    test('enablePairing delegates to current provider', async () => {
+        await adapter.playMode('bluetooth', 0);
+        await adapter.enablePairing();
+
+        expect(providerB.enablePairing).toHaveBeenCalled();
+    });
+
+    test('enablePairing throws if current provider does not support it', async () => {
+        await adapter.playMode('internet_radio', 0);
+
+        await expect(adapter.enablePairing()).rejects.toThrow('does not support pairing');
+    });
+
+    // ------------------------
+    // now playing
+    // ------------------------
+
+    test('forwards now-playing updates from the current provider', async () => {
+        const callback = jest.fn();
+        adapter.onNowPlayingChanged(callback);
+
+        await adapter.playMode('internet_radio', 0);
+
+        const forward = providerA.onNowPlayingChanged.mock.calls[0][0];
+        forward({ title: 'Track' });
+
+        expect(callback).toHaveBeenCalledWith({ title: 'Track' });
     });
 
     // ------------------------

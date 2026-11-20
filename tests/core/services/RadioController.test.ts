@@ -1,5 +1,4 @@
 import { RadioController } from '../../../src/core/services/RadioController';
-import { AsyncProcessor } from '../../../src/core/util/AsyncProcessor';
 
 // Mock AsyncProcessor to run immediately (no debounce complexity)
 jest.mock('../../../src/core/util/AsyncProcessor', () => {
@@ -14,6 +13,7 @@ describe('RadioController', () => {
 
     let inputPort: any;
     let outputPort: any;
+    let displayPort: any;
     let audioPort: any;
     let apiPort: any;
     let presetPort: any;
@@ -23,25 +23,31 @@ describe('RadioController', () => {
 
     beforeEach(() => {
         inputPort = {
-            onModeSelect: jest.fn(),
-            onPresetSelect: jest.fn(),
+            onModeToggle: jest.fn(),
+            onActionPress: jest.fn(),
             onVolumeChange: jest.fn(),
-            onPowerToggle: jest.fn(),
-            onFMFrequencyChange: jest.fn()
+            onPowerToggle: jest.fn()
         };
 
         outputPort = {
             setMode: jest.fn(),
             setPresetState: jest.fn(),
             idlePresetState: jest.fn(),
+            setPairingState: jest.fn(),
             idle: jest.fn()
+        };
+
+        displayPort = {
+            showLines: jest.fn(),
+            showTransient: jest.fn()
         };
 
         audioPort = {
             playMode: jest.fn().mockResolvedValue(undefined),
-            playFMFreq: jest.fn().mockResolvedValue(undefined),
+            enablePairing: jest.fn().mockResolvedValue(undefined),
             stop: jest.fn().mockResolvedValue(undefined),
-            setVolume: jest.fn().mockResolvedValue(undefined)
+            setVolume: jest.fn().mockResolvedValue(undefined),
+            onNowPlayingChanged: jest.fn()
         };
 
         apiPort = {
@@ -54,20 +60,23 @@ describe('RadioController', () => {
 
         presetPort = {
             onPresetsUpdated: jest.fn(),
-            getNumPresets: jest.fn().mockResolvedValue(2),
-            getValueByPreset: jest.fn().mockResolvedValue(1)
+            getNumPresets: jest.fn().mockReturnValue(5),
+            getValueByPreset: jest.fn().mockReturnValue('http://example.com/station')
         };
 
         state = {
             power: "power",
             mode: "internet_radio",
             preset: 1,
-            volume: 50
+            volume: 50,
+            pairing: false,
+            nowPlaying: {}
         };
 
         controller = new RadioController({
             inputPort,
             outputPort,
+            displayPort,
             audioPort,
             apiPort,
             presetPort,
@@ -113,23 +122,35 @@ describe('RadioController', () => {
     // MODE
     // ------------------------
 
-    test('sets new mode via input', async () => {
+    test('toggles mode from internet_radio to bluetooth via input', async () => {
         let handler: any;
-        inputPort.onModeSelect.mockImplementation((cb: any) => handler = cb);
+        inputPort.onModeToggle.mockImplementation((cb: any) => handler = cb);
 
         controller.init();
 
-        await handler("fm");
+        await handler();
 
-        expect(state.mode).toBe("fm");
-        expect(outputPort.setMode).toHaveBeenCalledWith("fm");
-        expect(outputPort.setPresetState).toHaveBeenCalled();
-        expect(audioPort.playMode).toHaveBeenCalledWith("fm", state.preset);
+        expect(state.mode).toBe("bluetooth");
+        expect(outputPort.setMode).toHaveBeenCalledWith("bluetooth");
+        expect(outputPort.idlePresetState).toHaveBeenCalled();
+        expect(audioPort.playMode).toHaveBeenCalledWith("bluetooth", 0);
     });
 
-    test('does not re-run mode if same mode and not forced', async () => {
+    test('toggles mode back to internet_radio on second toggle', async () => {
         let handler: any;
-        inputPort.onModeSelect.mockImplementation((cb: any) => handler = cb);
+        inputPort.onModeToggle.mockImplementation((cb: any) => handler = cb);
+
+        controller.init();
+
+        await handler();
+        await handler();
+
+        expect(state.mode).toBe("internet_radio");
+    });
+
+    test('does not re-run mode via api if same mode and not forced', async () => {
+        let handler: any;
+        apiPort.onSetMode.mockImplementation((cb: any) => handler = cb);
 
         controller.init();
 
@@ -150,62 +171,46 @@ describe('RadioController', () => {
     });
 
     // ------------------------
-    // PRESET
+    // ACTION BUTTON
     // ------------------------
 
-    test('sets preset when in internet_radio mode', async () => {
+    test('action press cycles preset in internet_radio mode', async () => {
         let handler: any;
-        inputPort.onPresetSelect.mockImplementation((cb: any) => handler = cb);
+        inputPort.onActionPress.mockImplementation((cb: any) => handler = cb);
 
         controller.init();
 
-        await handler(4);
+        await handler();
 
-        expect(state.preset).toBe(4);
-        expect(outputPort.setPresetState).toHaveBeenCalledWith(4);
-        expect(audioPort.playMode).toHaveBeenCalledWith("internet_radio", 4);
+        expect(state.preset).toBe(2);
+        expect(outputPort.setPresetState).toHaveBeenCalledWith(2);
+        expect(audioPort.playMode).toHaveBeenCalledWith("internet_radio", 2);
     });
 
-    test('sets preset when in fm mode', async () => {
-        state.mode = "fm";
-
+    test('action press wraps around to first preset', async () => {
+        state.preset = 4;
         let handler: any;
-        inputPort.onPresetSelect.mockImplementation((cb: any) => handler = cb);
+        inputPort.onActionPress.mockImplementation((cb: any) => handler = cb);
 
         controller.init();
 
-        await handler(4);
+        await handler();
 
-        expect(state.preset).toBe(4);
-        expect(outputPort.setPresetState).toHaveBeenCalledWith(4);
-        expect(audioPort.playMode).toHaveBeenCalledWith("fm", 4);
+        expect(state.preset).toBe(0);
     });
 
-    test('ignores preset change in invalid bt mode', async () => {
+    test('action press triggers pairing in bluetooth mode', async () => {
         state.mode = "bluetooth";
-
         let handler: any;
-        inputPort.onPresetSelect.mockImplementation((cb: any) => handler = cb);
+        inputPort.onActionPress.mockImplementation((cb: any) => handler = cb);
 
         controller.init();
 
-        await handler(4);
+        await handler();
 
-        expect(audioPort.playMode).not.toHaveBeenCalled();
-    });
-
-    test('ignores preset if same value', async () => {
-        state.mode = "fm";
-        state.preset = 3;
-
-        let handler: any;
-        inputPort.onPresetSelect.mockImplementation((cb: any) => handler = cb);
-
-        controller.init();
-
-        await handler(3);
-
-        expect(audioPort.playMode).not.toHaveBeenCalled();
+        expect(state.pairing).toBe(true);
+        expect(outputPort.setPairingState).toHaveBeenCalledWith(true);
+        expect(audioPort.enablePairing).toHaveBeenCalled();
     });
 
     // ------------------------
@@ -239,6 +244,22 @@ describe('RadioController', () => {
     });
 
     // ------------------------
+    // NOW PLAYING
+    // ------------------------
+
+    test('updates nowPlaying and refreshes display on now-playing change', () => {
+        let handler: any;
+        audioPort.onNowPlayingChanged.mockImplementation((cb: any) => handler = cb);
+
+        controller.init();
+
+        handler({ title: "Some Song" });
+
+        expect(state.nowPlaying).toEqual({ title: "Some Song" });
+        expect(displayPort.showLines).toHaveBeenCalledWith('http://example.com/station', 'Some Song');
+    });
+
+    // ------------------------
     // API
     // ------------------------
 
@@ -264,6 +285,30 @@ describe('RadioController', () => {
         const result = handler();
 
         expect(result).toBe(state);
+    });
+
+    test('api setMode works', async () => {
+        let handler: any;
+        apiPort.onSetMode.mockImplementation((cb: any) => handler = cb);
+
+        controller.init();
+
+        await handler("bluetooth");
+
+        expect(state.mode).toBe("bluetooth");
+        expect(audioPort.playMode).toHaveBeenCalledWith("bluetooth", 0);
+    });
+
+    test('api setPreset works', async () => {
+        let handler: any;
+        apiPort.onSetPreset.mockImplementation((cb: any) => handler = cb);
+
+        controller.init();
+
+        await handler(3);
+
+        expect(state.preset).toBe(3);
+        expect(audioPort.playMode).toHaveBeenCalledWith("internet_radio", 3);
     });
 
     test('api setVolume works', async () => {

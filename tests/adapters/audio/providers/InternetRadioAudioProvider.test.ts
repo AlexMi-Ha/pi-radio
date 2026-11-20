@@ -1,17 +1,24 @@
 import { InternetRadioAudioProvider } from '../../../../src/adapters/audio/providers/InternetRadioAudioProvider';
-import { PresetPort } from '../../../../src/core/ports/PresetPort';
-import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
+import { spawn } from 'child_process';
+import net from 'net';
 
 jest.mock('child_process', () => ({
     spawn: jest.fn()
+}));
+
+jest.mock('net', () => ({
+    createConnection: jest.fn()
 }));
 
 describe('InternetRadioAudioProvider', () => {
     let presetPort: any;
     let provider: InternetRadioAudioProvider;
     let mockProcess: any;
+    let mockSocket: any;
 
     beforeEach(() => {
+        jest.clearAllMocks();
+
         mockProcess = {
             stdout: { on: jest.fn() },
             stderr: { on: jest.fn() },
@@ -20,6 +27,13 @@ describe('InternetRadioAudioProvider', () => {
         };
 
         (spawn as jest.Mock).mockReturnValue(mockProcess);
+
+        mockSocket = {
+            write: jest.fn(),
+            on: jest.fn(),
+            destroy: jest.fn()
+        };
+        (net.createConnection as jest.Mock).mockReturnValue(mockSocket);
 
         presetPort = {
             getNumPresets: jest.fn().mockReturnValue(5),
@@ -80,12 +94,31 @@ describe('InternetRadioAudioProvider', () => {
             url,
             '--no-video',
             '--volume=100',
-            '--quiet'
+            '--quiet',
+            expect.stringMatching(/^--input-ipc-server=/)
         ]);
 
         expect(mockProcess.stdout.on).toHaveBeenCalledWith('data', expect.any(Function));
         expect(mockProcess.stderr.on).toHaveBeenCalledWith('data', expect.any(Function));
         expect(mockProcess.on).toHaveBeenCalledWith('exit', expect.any(Function));
+    });
+
+    test('forwards media-title changes from the mpv IPC socket', async () => {
+        const url = 'http://example.com/stream';
+        presetPort.getValueByPreset.mockReturnValue(url);
+        const callback = jest.fn();
+        provider.onNowPlayingChanged(callback);
+
+        await provider.start(1);
+
+        const connectCb = (net.createConnection as jest.Mock).mock.calls[0][1];
+        connectCb();
+        expect(mockSocket.write).toHaveBeenCalled();
+
+        const dataHandler = mockSocket.on.mock.calls.find((c: any) => c[0] === 'data')[1];
+        dataHandler(Buffer.from(JSON.stringify({ event: 'property-change', name: 'media-title', data: 'Artist - Song' }) + '\n'));
+
+        expect(callback).toHaveBeenCalledWith({ title: 'Artist - Song' });
     });
 
     // ------------------------
@@ -102,6 +135,7 @@ describe('InternetRadioAudioProvider', () => {
 
         expect(console.log).toHaveBeenCalledWith('[Internet Radio] Stopped internet radio playback!');
         expect(mockProcess.kill).toHaveBeenCalled();
+        expect(mockSocket.destroy).toHaveBeenCalled();
         expect((provider as any).currentProcess).toBeUndefined();
     });
 
