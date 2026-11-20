@@ -17,7 +17,8 @@ export class PersistentPresetAdapter implements PresetPort {
     if (fs.existsSync(this.filePath)) {
       try {
         const data = fs.readFileSync(this.filePath, "utf-8");
-        this.presets = JSON.parse(data) as Map<PresetMode, string[]>;
+        const parsed = JSON.parse(data) as Record<string, string[]>;
+        this.presets = new Map(Object.entries(parsed)) as Map<PresetMode, string[]>;
       } catch (err) {
         console.warn("[Preset] Failed to read presets file, initializing empty presets", err);
         this.presets = this.initEmptyPresets();
@@ -31,14 +32,15 @@ export class PersistentPresetAdapter implements PresetPort {
   private initEmptyPresets(): Map<PresetMode, string[]> {
     const presets = new Map<PresetMode, string[]>();
     for(const presetMode of _presetModes) {
-      presets.set(presetMode, []);
-    } 
+      presets.set(presetMode, new Array(this.maxPresets).fill(""));
+    }
     return presets;
   }
 
   private saveToFile(): void {
     try {
-      fs.writeFileSync(this.filePath, JSON.stringify(this.presets, null, 2), "utf-8");
+      const plain = Object.fromEntries(this.presets);
+      fs.writeFileSync(this.filePath, JSON.stringify(plain, null, 2), "utf-8");
     } catch (err) {
       console.error("[Preset] Failed to save presets to file:", err);
     }
@@ -60,9 +62,11 @@ export class PersistentPresetAdapter implements PresetPort {
   }
 
   setValueForPreset(mode: PresetMode, presetIdx: number, value: string): void {
-    if(!this.presets.has(mode)) {
-      this.presets.set(mode, []);
+    if(presetIdx < 0 || presetIdx >= this.maxPresets) {
+      console.error(`[Preset] Rejected preset index ${presetIdx}, must be within [0, ${this.maxPresets - 1}]`);
+      return;
     }
+    this.initPresetIfNotExist(mode);
     this.presets.get(mode)![presetIdx] = value;
     this.saveToFile();
     this.onUpdatedCallback?.();
@@ -76,7 +80,7 @@ export class PersistentPresetAdapter implements PresetPort {
     if(this.presets.has(mode)) {
       return;
     }
-    this.presets.set(mode, []);
+    this.presets.set(mode, new Array(this.maxPresets).fill(""));
     this.saveToFile();
   }
 }

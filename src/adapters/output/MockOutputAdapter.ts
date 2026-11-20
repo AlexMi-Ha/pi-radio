@@ -2,7 +2,7 @@ import { State, Mode } from "../../core/models/State";
 import { OutputPort } from "../../core/ports/OutputPort";
 
 export class MockOutputAdapter implements OutputPort {
-    
+
     idle(): void {
         console.log("[Output] All LEDs set to idle")
     }
@@ -17,6 +17,9 @@ export class MockOutputAdapter implements OutputPort {
     }
     idlePresetState(): void {
         console.log("[Output] Returns Preset LEDs to idle position");
+    }
+    setPairingState(active: boolean): void {
+        console.log("[Output] Pairing LED " + (active ? "on" : "off"));
     }
 
 }

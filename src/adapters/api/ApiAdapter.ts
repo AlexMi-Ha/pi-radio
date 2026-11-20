@@ -1,4 +1,5 @@
 import express from "express";
+import http from "http";
 import path from "path";
 import { Power, PresetMode ,Mode, State, isPresetMode, _presetModes } from "../../core/models/State";
 import { ApiPort } from "../../core/ports/ApiPort";
@@ -7,9 +8,10 @@ import { PresetPort } from "../../core/ports/PresetPort";
 export class ApiAdapter implements ApiPort {
 
     private app;
+    private server?: http.Server;
     private port: number;
     private presetPort : PresetPort;
-    
+
     private callbacks: {
         setPower?: (state: Power) => Promise<void>,
         setMode?: (mode: Mode) => Promise<void>,
@@ -113,9 +115,9 @@ export class ApiAdapter implements ApiPort {
         });
 
         this.app.get('/api/preset', (req, res) => {
-            const presets = new Map<PresetMode, string[]>(); 
+            const presets: Record<string, string[]> = {};
             for(const presetMode of _presetModes) {
-                presets.set(presetMode, this.presetPort.getAllPresets(presetMode));
+                presets[presetMode] = this.presetPort.getAllPresets(presetMode);
             }
             res.json(presets);
         });
@@ -131,25 +133,24 @@ export class ApiAdapter implements ApiPort {
 
         this.app.get('/api/preset/:mode/:presetId', (req, res) => {
             const mode = req.params.mode;
-            const presetId = Number.parseInt(req.params.presetId, 10);
             if(!isPresetMode(mode)) {
                 res.statusCode = 400;
                 res.send("Unknown radio mode for presets");
                 return;
             }
             const presets = this.getPresetsOfMode(mode);
-            if(Number.isNaN(presetId) || presetId < 0 || presetId > this.presetPort.getNumPresets(mode) || presetId > presets.length - 1) {
+            const presetId = this.parsePresetId(req.params.presetId, presets.length);
+            if(presetId === undefined) {
                 res.statusCode = 400;
                 res.send("Invalid presetId");
                 return;
             }
-            
+
             res.json(presets[presetId]);
         });
 
         this.app.post('/api/preset/:mode/:presetId', (req, res) => {
             const mode = req.params.mode;
-            const presetId = Number.parseInt(req.params.presetId, 10);
             const {value} = req.body;
             if(!isPresetMode(mode)) {
                 res.statusCode = 400;
@@ -157,23 +158,37 @@ export class ApiAdapter implements ApiPort {
                 return;
             }
             const presets = this.getPresetsOfMode(mode);
-            if(Number.isNaN(presetId) || presetId < 0 || presetId > this.presetPort.getNumPresets(mode) || presetId > presets.length - 1) {
+            const presetId = this.parsePresetId(req.params.presetId, presets.length);
+            if(presetId === undefined) {
                 res.statusCode = 400;
                 res.send("Invalid presetId");
                 return;
             }
-            
+
             this.presetPort.setValueForPreset(mode, presetId, value);
+            res.json(this.getPresetsOfMode(mode));
         });
     }
 
     public start() {
-        this.app.listen(this.port, () => {
+        this.server = this.app.listen(this.port, () => {
             console.log(`[Api] API server running on http://localhost:${this.port}`)
         });
     }
 
+    public stop(): void {
+        this.server?.close();
+    }
+
     private getPresetsOfMode(mode: PresetMode): string[] {
         return this.presetPort.getAllPresets(mode);
+    }
+
+    private parsePresetId(raw: string, numPresets: number): number | undefined {
+        const presetId = Number.parseInt(raw, 10);
+        if(Number.isNaN(presetId) || presetId < 0 || presetId >= numPresets) {
+            return undefined;
+        }
+        return presetId;
     }
 }

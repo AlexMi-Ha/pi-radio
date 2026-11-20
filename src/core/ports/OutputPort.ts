@@ -7,4 +7,5 @@ export interface OutputPort {
     setMode(mode: Mode) : void
     setPresetState(preset : number): void
     idlePresetState() : void
+    setPairingState(active: boolean): void
 }
