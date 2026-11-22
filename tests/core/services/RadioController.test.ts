@@ -277,7 +277,7 @@ describe('RadioController', () => {
         expect(audioPort.setVolume).toHaveBeenLastCalledWith(50);
     });
 
-    test('volume changes while muted do not unmute audio', async () => {
+    test('turning the volume knob while muted unmutes and applies the new volume', async () => {
         state.muted = true;
         let volumeHandler: any;
         inputPort.onVolumeChange.mockImplementation((cb: any) => volumeHandler = cb);
@@ -287,7 +287,21 @@ describe('RadioController', () => {
         await volumeHandler(10);
 
         expect(state.volume).toBe(60);
-        expect(audioPort.setVolume).not.toHaveBeenCalled();
+        expect(state.muted).toBe(false);
+        expect(audioPort.setVolume).toHaveBeenCalledWith(60);
+    });
+
+    test('api setVolume while muted also unmutes', async () => {
+        state.muted = true;
+        let handler: any;
+        apiPort.onSetVolume.mockImplementation((cb: any) => handler = cb);
+
+        controller.init();
+
+        await handler(70);
+
+        expect(state.muted).toBe(false);
+        expect(audioPort.setVolume).toHaveBeenCalledWith(70);
     });
 
     test('api setMute works', async () => {

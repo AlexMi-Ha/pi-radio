@@ -157,9 +157,11 @@ export class RadioController {
 
     private async onSetVolume(vol: number): Promise<void> {
         this.state.volume = clamp(0, 100, vol);
-        if(!this.state.muted) {
-            await this.audioPort.setVolume(this.state.volume);
+        if(this.state.muted) {
+            this.state.muted = false;
+            this.refreshDisplay();
         }
+        await this.audioPort.setVolume(this.state.volume);
     }
 
     private async onSetMute(muted: boolean): Promise<void> {
