@@ -2,6 +2,7 @@ import { I2cLcdDisplayPort } from "../../../src/adapters/display/I2cLcdDisplayPo
 
 const EN_BIT = 0x04;
 const RS_BIT = 0x01;
+const BACKLIGHT_BIT = 0x08;
 
 let i2cWriteSync: jest.Mock;
 let closeSync: jest.Mock;
@@ -117,5 +118,40 @@ describe("I2cLcdDisplayPort", () => {
     test("stop closes the i2c bus", () => {
         display.stop();
         expect(closeSync).toHaveBeenCalledTimes(1);
+    });
+
+    test("setPower(false) turns off the backlight and stops rendering content", () => {
+        display.showLines("Hello", "World");
+        i2cWriteSync.mockClear();
+
+        display.setPower(false);
+
+        const offWriteBytes = i2cWriteSync.mock.calls.map((c: any[]) => c[2][0] as number);
+        expect(offWriteBytes.length).toBeGreaterThan(0);
+        expect(offWriteBytes.every((b) => (b & BACKLIGHT_BIT) === 0)).toBe(true);
+
+        i2cWriteSync.mockClear();
+        display.showLines("Should", "NotRender");
+        expect(i2cWriteSync).not.toHaveBeenCalled();
+    });
+
+    test("setPower(true) restores the backlight and re-renders the last persistent content", () => {
+        display.showLines("Hello", "World");
+        display.setPower(false);
+        i2cWriteSync.mockClear();
+
+        display.setPower(true);
+
+        const calls = i2cWriteSync.mock.calls.map((c: any[]) => c[2][0] as number);
+        expect(calls.some((b) => (b & BACKLIGHT_BIT) !== 0)).toBe(true);
+
+        const text = decodeCharWrites(calls.map((b) => [b]));
+        expect(text).toBe("Hello           World           ");
+    });
+
+    test("setPower is a no-op when called with the current power state", () => {
+        i2cWriteSync.mockClear();
+        display.setPower(true);
+        expect(i2cWriteSync).not.toHaveBeenCalled();
     });
 });

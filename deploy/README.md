@@ -60,7 +60,8 @@ dev`) to the real GPIO buttons/encoder and I2C LCD adapters.
 
 Buttons, the rotary encoder, and the LCD's I2C bus/address are configured via
 environment variables (set in `/etc/default/pi-radio` alongside
-`PI_RADIO_PRESETS_PATH`), each with a default placeholder value:
+`PI_RADIO_PRESETS_PATH`/`PI_RADIO_SETTINGS_PATH`), each with a default
+placeholder value:
 
 | Variable                  | Default | Meaning                          |
 |---------------------------|---------|-----------------------------------|
@@ -143,6 +144,12 @@ Preset data (the 5 station URLs) is stored on the boot partition
 that stays writable even with the overlay active - so presets you edit via
 the web UI keep persisting across reboots, while everything else (the OS,
 the app code) resets to this known-good state on every boot.
+
+The last mode, volume, and preset are persisted the same way
+(`/boot/firmware/pi-radio/settings.json`, `PI_RADIO_SETTINGS_PATH`), written
+whenever the radio is put into idle (powered off) - so the radio comes back
+up in the same state you left it in, instead of resetting to the defaults
+on every reboot.
 
 > The exact `raspi-config nonint do_overlayfs` flag can vary across OS
 > releases. If `enable-readonly` reports failure, open `sudo raspi-config` on

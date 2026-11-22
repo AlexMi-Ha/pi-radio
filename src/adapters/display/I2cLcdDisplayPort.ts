@@ -1,5 +1,6 @@
 import i2c, { I2CBus } from "i2c-bus";
 import { DisplayPort } from "../../core/ports/DisplayPort";
+import { logger } from "../../core/util/Logger";
 
 // PCF8574 I2C LCD backpack bit layout (the ubiquitous "LiquidCrystal_I2C"
 // wiring): P0=RS, P1=RW (unused, always 0), P2=EN, P3=backlight, P4-P7=data
@@ -10,6 +11,7 @@ const BACKLIGHT_BIT = 0x08;
 
 const LCD_CLEAR_DISPLAY = 0x01;
 const LCD_ENTRY_MODE_SET = 0x06;
+const LCD_DISPLAY_OFF = 0x08;
 const LCD_DISPLAY_ON = 0x0c;
 const LCD_FUNCTION_SET_4BIT_2LINE = 0x28;
 const LCD_SET_DDRAM_ADDR = 0x80;
@@ -49,6 +51,14 @@ export class I2cLcdDisplayPort implements DisplayPort {
     private blinkOn = true;
     private transientTimer: NodeJS.Timeout | undefined = undefined;
 
+    // Tracks whether the last I2C write failed, so repeated failures (e.g. a loose
+    // connector causing every single char write to fail) log once instead of flooding
+    // the log - only the fail->ok and ok->fail transitions are logged.
+    private i2cErrored = false;
+
+    // Tracks whether the display (and its backlight) is currently powered on.
+    private poweredOn = true;
+
     constructor(options: I2cLcdDisplayPortOptions = {}) {
         this.address = options.address ?? 0x27;
         this.scrollIntervalMs = options.scrollIntervalMs ?? 400;
@@ -58,8 +68,22 @@ export class I2cLcdDisplayPort implements DisplayPort {
     }
 
     private writeByte(data: number): void {
-        const buf = Buffer.from([data | BACKLIGHT_BIT]);
-        this.bus.i2cWriteSync(this.address, buf.length, buf);
+        const buf = Buffer.from([data | (this.poweredOn ? BACKLIGHT_BIT : 0)]);
+        try {
+            this.bus.i2cWriteSync(this.address, buf.length, buf);
+            if (this.i2cErrored) {
+                this.i2cErrored = false;
+                logger.log("[LCD] I2C write recovered");
+            }
+        } catch (err) {
+            // Swallow: a flaky display connection must not take down the whole radio
+            // process. Only log the first failure of a run, to avoid flooding the log
+            // since this is called on every character write.
+            if (!this.i2cErrored) {
+                this.i2cErrored = true;
+                logger.error("[LCD] I2C write failed, display output may be stuck:", err);
+            }
+        }
     }
 
     private pulseEnable(data: number): void {
@@ -114,6 +138,9 @@ export class I2cLcdDisplayPort implements DisplayPort {
     }
 
     private renderLine(row: number, text: string): void {
+        if (!this.poweredOn) {
+            return;
+        }
         this.setCursor(0, row);
         const padded = text.slice(0, LINE_WIDTH).padEnd(LINE_WIDTH, " ");
         for (const ch of padded) {
@@ -207,12 +234,38 @@ export class I2cLcdDisplayPort implements DisplayPort {
         }, durationMs);
     }
 
+    setPower(on: boolean): void {
+        if (on === this.poweredOn) {
+            return;
+        }
+        if (on) {
+            this.poweredOn = true;
+            this.command(LCD_DISPLAY_ON);
+            this.startPersistentTimers();
+            this.renderPersistent();
+            logger.log("[LCD] Display powered on");
+        } else {
+            this.clearTimers();
+            if (this.transientTimer) {
+                clearTimeout(this.transientTimer);
+                this.transientTimer = undefined;
+            }
+            this.poweredOn = false;
+            this.command(LCD_DISPLAY_OFF);
+            logger.log("[LCD] Display powered off");
+        }
+    }
+
     stop(): void {
         this.clearTimers();
         if (this.transientTimer) {
             clearTimeout(this.transientTimer);
             this.transientTimer = undefined;
         }
-        this.bus.closeSync();
+        try {
+            this.bus.closeSync();
+        } catch (err) {
+            logger.error("[LCD] Failed to close I2C bus:", err);
+        }
     }
 }

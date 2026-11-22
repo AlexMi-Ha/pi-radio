@@ -46,6 +46,10 @@ export class ApiAdapter implements ApiPort {
         this.port = port;
         this.app = express();
         this.app.use(express.json());
+        this.app.use((req, res, next) => {
+            logger.log(`[Api] ${req.method} ${req.originalUrl}`);
+            next();
+        });
         this.setupApiRoutes();
         this.setupWebRoutes();
     }
@@ -78,7 +82,14 @@ export class ApiAdapter implements ApiPort {
                 return;
             }
             const {power} = req.body;
-            await this.callbacks.setPower(power);
+            try {
+                await this.callbacks.setPower(power);
+            } catch(err) {
+                logger.error(`[Api] setPower(${power}) failed:`, err);
+                res.statusCode = 500;
+                res.send('Failed to set power');
+                return;
+            }
 
             res.json(this.callbacks.getState?.());
         });
@@ -90,7 +101,14 @@ export class ApiAdapter implements ApiPort {
                 return;
             }
             const {mode} = req.body;
-            await this.callbacks.setMode(mode);
+            try {
+                await this.callbacks.setMode(mode);
+            } catch(err) {
+                logger.error(`[Api] setMode(${mode}) failed:`, err);
+                res.statusCode = 500;
+                res.send('Failed to set mode');
+                return;
+            }
 
             res.json(this.callbacks.getState?.());
         });
@@ -102,7 +120,14 @@ export class ApiAdapter implements ApiPort {
                 return;
             }
             const {volume} = req.body;
-            await this.callbacks.setVolume(volume);
+            try {
+                await this.callbacks.setVolume(volume);
+            } catch(err) {
+                logger.error(`[Api] setVolume(${volume}) failed:`, err);
+                res.statusCode = 500;
+                res.send('Failed to set volume');
+                return;
+            }
 
             res.json(this.callbacks.getState?.());
         });
@@ -114,7 +139,14 @@ export class ApiAdapter implements ApiPort {
                 return;
             }
             const {muted} = req.body;
-            await this.callbacks.setMute(muted);
+            try {
+                await this.callbacks.setMute(muted);
+            } catch(err) {
+                logger.error(`[Api] setMute(${muted}) failed:`, err);
+                res.statusCode = 500;
+                res.send('Failed to set mute');
+                return;
+            }
 
             res.json(this.callbacks.getState?.());
         });
@@ -126,7 +158,14 @@ export class ApiAdapter implements ApiPort {
                 return;
             }
             const {preset} = req.body;
-            await this.callbacks.setPreset(preset);
+            try {
+                await this.callbacks.setPreset(preset);
+            } catch(err) {
+                logger.error(`[Api] setPreset(${preset}) failed:`, err);
+                res.statusCode = 500;
+                res.send('Failed to set preset');
+                return;
+            }
 
             res.json(this.callbacks.getState?.());
         });
