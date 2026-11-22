@@ -23,7 +23,8 @@ describe('AudioAdapter', () => {
             mode: 'bluetooth' as Mode,
             start: jest.fn().mockResolvedValue(undefined),
             stop: jest.fn().mockResolvedValue(undefined),
-            enablePairing: jest.fn().mockResolvedValue(undefined)
+            enablePairing: jest.fn().mockResolvedValue(undefined),
+            onConnectionChanged: jest.fn()
         };
 
         (exec as jest.Mock).mockReset();
@@ -126,6 +127,22 @@ describe('AudioAdapter', () => {
         forward({ title: 'Track' });
 
         expect(callback).toHaveBeenCalledWith({ title: 'Track' });
+    });
+
+    // ------------------------
+    // connection state
+    // ------------------------
+
+    test('forwards connection changes from the current provider', async () => {
+        const callback = jest.fn();
+        adapter.onConnectionChanged(callback);
+
+        await adapter.playMode('bluetooth', 0);
+
+        const forward = providerB.onConnectionChanged.mock.calls[0][0];
+        forward(true);
+
+        expect(callback).toHaveBeenCalledWith(true);
     });
 
     // ------------------------

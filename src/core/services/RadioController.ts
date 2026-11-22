@@ -65,6 +65,15 @@ export class RadioController {
             this.state.nowPlaying = info;
             this.refreshDisplay();
         });
+
+        this.audioPort.onConnectionChanged((connected) => {
+            this.state.connected = connected;
+            if(connected) {
+                this.state.pairing = false;
+                this.outputPort.setPairingState(false);
+            }
+            this.refreshDisplay();
+        });
     }
 
     private configureInputAdapter() {
@@ -119,6 +128,7 @@ export class RadioController {
         }
         this.state.mode = mode;
         this.state.pairing = false;
+        this.state.connected = false;
         this.state.nowPlaying = {};
 
         if(!isPresetMode(this.state.mode) || this.presetPort.getNumPresets(this.state.mode) <= this.state.preset) {
@@ -218,11 +228,9 @@ export class RadioController {
             const station = name || value || "No station set";
             return [station, this.state.nowPlaying.title, undefined];
         }else {
-            // No real BlueZ connection-state tracking yet (BluetoothAudioProvider is a
-            // stub), so "paired" is approximated by having live track metadata.
             if(this.state.pairing) {
                 return ["Pairing", this.state.nowPlaying.title, { blink: true }];
-            }else if(this.state.nowPlaying.title) {
+            }else if(this.state.connected) {
                 return ["Paired", this.state.nowPlaying.title, undefined];
             }else {
                 return ["Bluetooth", "Not Paired", undefined];

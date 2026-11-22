@@ -91,6 +91,18 @@ restart the service (`sudo systemctl restart pi-radio`).
 > confirm all of this after deploying to an actual Pi with the parts wired
 > up.
 
+### Bluetooth
+
+No extra setup is needed beyond the `bluez` package `provision.sh` already
+installs - live pairing/connection status and AVRCP track metadata work by
+talking to `bluetoothd` over the system D-Bus (`org.bluez`), which any user
+(including the `pi` service account) can read from under BlueZ's default
+D-Bus policy. This has only been developed against the BlueZ D-Bus API
+documentation (`https://github.com/bluez/bluez/tree/master/doc`), not a real
+Bluetooth adapter - confirm pairing, A2DP audio routing, and the "Paired"/
+track-title display after deploying to a Pi with a Bluetooth adapter and an
+actual phone/device to pair.
+
 ## 4. Lock down the filesystem (read-only root)
 
 Once you're happy with the deployed version, protect the SD card from

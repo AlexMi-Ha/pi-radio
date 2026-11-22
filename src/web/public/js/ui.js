@@ -215,7 +215,7 @@ function renderBluetooth(state) {
     if (state.pairing) {
         el.btStatusDot.classList.add('pairing');
         el.btStatusText.textContent = 'Pairing...';
-    } else if (state.nowPlaying?.title) {
+    } else if (state.connected) {
         el.btStatusDot.classList.add('paired');
         el.btStatusText.textContent = 'Paired';
     } else {

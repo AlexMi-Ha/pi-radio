@@ -6,4 +6,5 @@ export interface AudioPort {
     stop(): Promise<void>;
     setVolume(vol: number): Promise<void>;
     onNowPlayingChanged(callback: (info: { title?: string, subtitle?: string }) => void): void;
+    onConnectionChanged(callback: (connected: boolean) => void): void;
 }

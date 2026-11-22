@@ -75,6 +75,7 @@ The Kitchen Radio exposes a REST API for controlling power, mode, volume, and pr
   "volume": 70,
   "preset": 1,
   "pairing": false,
+  "connected": false,
   "nowPlaying": { "title": "Artist - Song" }
 }
 ```
