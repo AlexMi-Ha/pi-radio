@@ -8,6 +8,7 @@ import { GpioInputAdapter } from "./adapters/input/GpioInputAdapter";
 import { MockInputAdapter } from "./adapters/input/MockInputAdapter";
 import { MockOutputAdapter } from "./adapters/output/MockOutputAdapter";
 import { PersistentPresetAdapter } from "./adapters/preset/PersistentPresetAdapter";
+import { PersistentSettingsAdapter } from "./adapters/settings/PersistentSettingsAdapter";
 import { State } from "./core/models/State";
 import { RadioController } from "./core/services/RadioController";
 import { configureFileLogging, logger } from "./core/util/Logger";
@@ -21,11 +22,14 @@ configureFileLogging(
   process.env.PI_RADIO_LOG_MAX_FILES ? parseInt(process.env.PI_RADIO_LOG_MAX_FILES, 10) : undefined
 );
 
+const settingsAdapter = new PersistentSettingsAdapter(process.env.PI_RADIO_SETTINGS_PATH);
+const savedSettings = settingsAdapter.load();
+
 const initialState: State = {
   power: "idle",
-  mode: "internet_radio",
-  volume: 50,
-  preset: 0,
+  mode: savedSettings?.mode ?? "internet_radio",
+  volume: savedSettings?.volume ?? 50,
+  preset: savedSettings?.preset ?? 0,
   pairing: false,
   connected: false,
   muted: false,
@@ -77,6 +81,7 @@ const controller = new RadioController({
     audioPort: audioAdapter,
     apiPort: apiAdapter,
     presetPort: presetAdapter,
+    settingsPort: settingsAdapter,
     state: initialState
 });
 

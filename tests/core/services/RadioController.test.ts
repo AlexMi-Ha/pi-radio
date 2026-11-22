@@ -17,6 +17,7 @@ describe('RadioController', () => {
     let audioPort: any;
     let apiPort: any;
     let presetPort: any;
+    let settingsPort: any;
     let state: any;
 
     let controller: RadioController;
@@ -68,6 +69,11 @@ describe('RadioController', () => {
             getNameByPreset: jest.fn().mockReturnValue('')
         };
 
+        settingsPort = {
+            load: jest.fn().mockReturnValue(undefined),
+            save: jest.fn()
+        };
+
         state = {
             power: "power",
             mode: "internet_radio",
@@ -86,6 +92,7 @@ describe('RadioController', () => {
             audioPort,
             apiPort,
             presetPort,
+            settingsPort,
             state
         });
     });
@@ -122,6 +129,37 @@ describe('RadioController', () => {
         expect(state.power).toBe("idle");
         expect(audioPort.stop).toHaveBeenCalled();
         expect(outputPort.idle).toHaveBeenCalled();
+    });
+
+    test('persists mode/volume/preset via settingsPort when turning power OFF', async () => {
+        state.mode = "internet_radio";
+        state.preset = 3;
+        state.volume = 42;
+
+        let handler: any;
+        inputPort.onPowerToggle.mockImplementation((cb: any) => handler = cb);
+
+        controller.init();
+
+        await handler();
+
+        expect(settingsPort.save).toHaveBeenCalledWith({
+            mode: "internet_radio",
+            volume: 42,
+            preset: 3
+        });
+    });
+
+    test('does not persist settings via settingsPort when turning power ON', async () => {
+        state.power = "idle";
+        let handler: any;
+        inputPort.onPowerToggle.mockImplementation((cb: any) => handler = cb);
+
+        controller.init();
+
+        await handler();
+
+        expect(settingsPort.save).not.toHaveBeenCalled();
     });
 
     // ------------------------

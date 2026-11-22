@@ -5,6 +5,7 @@ import { DisplayPort } from "../ports/DisplayPort";
 import { InputPort } from "../ports/InputPort";
 import { OutputPort } from "../ports/OutputPort";
 import { PresetPort } from "../ports/PresetPort";
+import { SettingsPort } from "../ports/SettingsPort";
 import { AsyncProcessor } from "../util/AsyncProcessor";
 import { clamp, wrap } from "../util/util";
 
@@ -18,6 +19,7 @@ export class RadioController {
     private audioPort : AudioPort;
     private apiPort: ApiPort;
     private presetPort: PresetPort;
+    private settingsPort: SettingsPort;
 
     private powerAsyncProcessor: AsyncProcessor;
     private modeAsyncProcessor: AsyncProcessor;
@@ -35,6 +37,7 @@ export class RadioController {
         audioPort: AudioPort,
         apiPort: ApiPort,
         presetPort: PresetPort,
+        settingsPort: SettingsPort,
         state: State
     }) {
         this.inputPort = params.inputPort;
@@ -43,6 +46,7 @@ export class RadioController {
         this.audioPort = params.audioPort;
         this.apiPort = params.apiPort;
         this.presetPort = params.presetPort;
+        this.settingsPort = params.settingsPort;
         this.state = params.state;
 
         this.powerAsyncProcessor = new AsyncProcessor();
@@ -114,6 +118,11 @@ export class RadioController {
     private async onSetPower(power: Power) : Promise<void> {
         this.state.power = power;
         if(this.state.power == "idle") {
+            this.settingsPort.save({
+                mode: this.state.mode,
+                volume: this.state.volume,
+                preset: this.state.preset
+            });
             await this.audioPort.stop();
             this.outputPort.idle();
         }else {
