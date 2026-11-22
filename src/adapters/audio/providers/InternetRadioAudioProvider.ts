@@ -1,4 +1,5 @@
 import { ChildProcessWithoutNullStreams, spawn } from "child_process";
+import fs from "fs";
 import net, { Socket } from "net";
 import os from "os";
 import path from "path";
@@ -42,14 +43,17 @@ export class InternetRadioAudioProvider implements AudioProvider {
 
         console.log('[Internet Radio] Playing internet radio station at ' + url);
 
-        this.ipcPath = path.join(os.tmpdir(), `pi-radio-mpv-${process.pid}.sock`);
+        // Unique per invocation (not just per Node process) so a restarting mpv instance
+        // can never race the previous one for the same socket path.
+        const ipcPath = path.join(os.tmpdir(), `pi-radio-mpv-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.sock`);
+        this.ipcPath = ipcPath;
 
         this.currentProcess = spawn('mpv', [
             url,
             '--no-video',
             '--volume=100',
             '--quiet',
-            `--input-ipc-server=${this.ipcPath}`
+            `--input-ipc-server=${ipcPath}`
         ]);
 
         this.currentProcess.stdout.on("data", (data) => {
@@ -62,18 +66,23 @@ export class InternetRadioAudioProvider implements AudioProvider {
 
         this.currentProcess.on("exit", (code) => {
             console.log(`[Internet Radio - mpv exited] code: ${code}`);
+            // Must unlink the path captured for THIS process, not this.ipcPath, which may
+            // already belong to a newer process by the time this (delayed) exit fires.
+            fs.unlink(ipcPath, () => {});
         });
 
-        this.connectIpc();
+        this.connectIpc(ipcPath, this.currentProcess);
     }
 
-    private connectIpc(attempt: number = 0): void {
-        if(!this.ipcPath || !this.currentProcess) {
+    private connectIpc(ipcPath: string, proc: ChildProcessWithoutNullStreams, attempt: number = 0): void {
+        if(this.currentProcess !== proc) {
+            // A newer station has since started; this (possibly retrying) connection
+            // attempt belongs to a process that is no longer current.
             return;
         }
         // mpv creates the IPC socket asynchronously shortly after spawn, so retry briefly.
-        const socket = net.createConnection(this.ipcPath, () => {
-            socket.write(JSON.stringify({ command: ["observe_property", 1, "media-title"] }) + "\n");
+        const socket = net.createConnection(ipcPath, () => {
+            socket.write(JSON.stringify({ command: ["observe_property", 1, "metadata"] }) + "\n");
         });
 
         socket.on("data", (chunk) => {
@@ -81,9 +90,12 @@ export class InternetRadioAudioProvider implements AudioProvider {
                 if(!line.trim()) continue;
                 try {
                     const msg = JSON.parse(line);
-                    if(msg.event === "property-change" && msg.name === "media-title") {
-                        const title = typeof msg.data === "string" && msg.data.length > 0 ? msg.data : undefined;
-                        this.nowPlayingCallback?.({ title });
+                    // mpv only recomputes media-title once (falling back to the stream URL);
+                    // ICY title changes mid-stream show up as metadata updates instead.
+                    if(msg.event === "property-change" && msg.name === "metadata" && msg.data && typeof msg.data === "object") {
+                        const icyTitle = msg.data["icy-title"];
+                        const title = typeof icyTitle === "string" && icyTitle.length > 0 ? icyTitle : undefined;
+                        this.nowPlayingCallback?.(title !== undefined ? { title } : {});
                     }
                 }catch {
                     // ignore malformed/partial lines
@@ -92,8 +104,8 @@ export class InternetRadioAudioProvider implements AudioProvider {
         });
 
         socket.on("error", () => {
-            if(attempt < 20 && this.currentProcess) {
-                setTimeout(() => this.connectIpc(attempt + 1), 250);
+            if(attempt < 20 && this.currentProcess === proc) {
+                setTimeout(() => this.connectIpc(ipcPath, proc, attempt + 1), 250);
             }
         });
 

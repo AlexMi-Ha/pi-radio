@@ -103,7 +103,7 @@ describe('InternetRadioAudioProvider', () => {
         expect(mockProcess.on).toHaveBeenCalledWith('exit', expect.any(Function));
     });
 
-    test('forwards media-title changes from the mpv IPC socket', async () => {
+    test('forwards icy-title changes from the mpv IPC socket metadata updates', async () => {
         const url = 'http://example.com/stream';
         presetPort.getValueByPreset.mockReturnValue(url);
         const callback = jest.fn();
@@ -116,7 +116,7 @@ describe('InternetRadioAudioProvider', () => {
         expect(mockSocket.write).toHaveBeenCalled();
 
         const dataHandler = mockSocket.on.mock.calls.find((c: any) => c[0] === 'data')[1];
-        dataHandler(Buffer.from(JSON.stringify({ event: 'property-change', name: 'media-title', data: 'Artist - Song' }) + '\n'));
+        dataHandler(Buffer.from(JSON.stringify({ event: 'property-change', name: 'metadata', data: { 'icy-title': 'Artist - Song' } }) + '\n'));
 
         expect(callback).toHaveBeenCalledWith({ title: 'Artist - Song' });
     });

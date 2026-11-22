@@ -13,7 +13,7 @@ import { RadioController } from "./core/services/RadioController";
 
 
 const initialState: State = {
-  power: "power",
+  power: "idle",
   mode: "internet_radio",
   volume: 50,
   preset: 0,
