@@ -4,6 +4,7 @@ import { Preset, PresetPort } from "../../core/ports/PresetPort";
 import fs from "fs";
 import path from "path";
 import { _presetModes, PresetMode } from "../../core/models/State";
+import { logger } from "../../core/util/Logger";
 
 export class PersistentPresetAdapter implements PresetPort {
   private presets: Map<PresetMode, Preset[]>;
@@ -23,7 +24,7 @@ export class PersistentPresetAdapter implements PresetPort {
         );
         this.saveToFile();
       } catch (err) {
-        console.warn("[Preset] Failed to read presets file, initializing empty presets", err);
+        logger.warn("[Preset] Failed to read presets file, initializing empty presets", err);
         this.presets = this.initEmptyPresets();
       }
     } else {
@@ -56,7 +57,7 @@ export class PersistentPresetAdapter implements PresetPort {
       const plain = Object.fromEntries(this.presets);
       fs.writeFileSync(this.filePath, JSON.stringify(plain, null, 2), "utf-8");
     } catch (err) {
-      console.error("[Preset] Failed to save presets to file:", err);
+      logger.error("[Preset] Failed to save presets to file:", err);
     }
   }
 
@@ -82,7 +83,7 @@ export class PersistentPresetAdapter implements PresetPort {
 
   setValueForPreset(mode: PresetMode, presetIdx: number, value: string): void {
     if(presetIdx < 0 || presetIdx >= this.maxPresets) {
-      console.error(`[Preset] Rejected preset index ${presetIdx}, must be within [0, ${this.maxPresets - 1}]`);
+      logger.error(`[Preset] Rejected preset index ${presetIdx}, must be within [0, ${this.maxPresets - 1}]`);
       return;
     }
     this.initPresetIfNotExist(mode);
@@ -93,7 +94,7 @@ export class PersistentPresetAdapter implements PresetPort {
 
   setNameForPreset(mode: PresetMode, presetIdx: number, name: string): void {
     if(presetIdx < 0 || presetIdx >= this.maxPresets) {
-      console.error(`[Preset] Rejected preset index ${presetIdx}, must be within [0, ${this.maxPresets - 1}]`);
+      logger.error(`[Preset] Rejected preset index ${presetIdx}, must be within [0, ${this.maxPresets - 1}]`);
       return;
     }
     this.initPresetIfNotExist(mode);

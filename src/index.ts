@@ -10,7 +10,16 @@ import { MockOutputAdapter } from "./adapters/output/MockOutputAdapter";
 import { PersistentPresetAdapter } from "./adapters/preset/PersistentPresetAdapter";
 import { State } from "./core/models/State";
 import { RadioController } from "./core/services/RadioController";
+import { configureFileLogging, logger } from "./core/util/Logger";
 
+configureFileLogging(
+  process.env.PI_RADIO_LOG_TO_FILE === "true",
+  process.env.PI_RADIO_LOG_FILE_PATH ?? "logs/pi-radio.log",
+  process.env.PI_RADIO_LOG_MAX_FILE_SIZE_BYTES
+    ? parseInt(process.env.PI_RADIO_LOG_MAX_FILE_SIZE_BYTES, 10)
+    : undefined,
+  process.env.PI_RADIO_LOG_MAX_FILES ? parseInt(process.env.PI_RADIO_LOG_MAX_FILES, 10) : undefined
+);
 
 const initialState: State = {
   power: "idle",
@@ -80,4 +89,4 @@ controller.init();
 inputAdapter.start();
 apiAdapter.start();
 
-console.log("Smart Kitchen Radio DEV environment running...")
+logger.log("Smart Kitchen Radio DEV environment running...")

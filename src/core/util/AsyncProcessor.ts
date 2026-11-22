@@ -1,3 +1,5 @@
+import { logger } from "./Logger";
+
 type Task = () => Promise<void>;
 
 export class AsyncProcessor {
@@ -31,7 +33,7 @@ export class AsyncProcessor {
             try {
                 await task();
             }catch(err) {
-                console.error("[AsyncQueue] task error:", err);
+                logger.error("[AsyncQueue] task error:", err);
             }
         }
         this.running = false;

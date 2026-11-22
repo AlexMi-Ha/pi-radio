@@ -6,6 +6,7 @@ import path from "path";
 import { Mode } from "../../../core/models/State";
 import { PresetPort } from "../../../core/ports/PresetPort";
 import { AudioProvider } from "../AudioProvider";
+import { logger } from "../../../core/util/Logger";
 
 export class InternetRadioAudioProvider implements AudioProvider {
 
@@ -32,16 +33,16 @@ export class InternetRadioAudioProvider implements AudioProvider {
         }
 
         if(presetIndex < 0 || presetIndex > this.presetPort.getNumPresets("internet_radio")) {
-            console.error('[Internet Radio] Error playing station ' + presetIndex + '. PresetIndex out of bounds!')
+            logger.error('[Internet Radio] Error playing station ' + presetIndex + '. PresetIndex out of bounds!')
             return;
         }
         const url = this.presetPort.getValueByPreset('internet_radio', presetIndex);
         if(!url) {
-            console.error('[Internet Radio] Error playing station ' + presetIndex + '. No URL set!')
+            logger.error('[Internet Radio] Error playing station ' + presetIndex + '. No URL set!')
             return;
         }
 
-        console.log('[Internet Radio] Playing internet radio station at ' + url);
+        logger.log('[Internet Radio] Playing internet radio station at ' + url);
 
         // Unique per invocation (not just per Node process) so a restarting mpv instance
         // can never race the previous one for the same socket path.
@@ -57,15 +58,15 @@ export class InternetRadioAudioProvider implements AudioProvider {
         ]);
 
         this.currentProcess.stdout.on("data", (data) => {
-            console.log(`[Internet Radio - mpv stdout]: ${data.toString()}`);
+            logger.log(`[Internet Radio - mpv stdout]: ${data.toString()}`);
         });
 
         this.currentProcess.stderr.on("data", (data) => {
-            console.error(`[Internet Radio - mpv stderr]: ${data.toString()}`);
+            logger.error(`[Internet Radio - mpv stderr]: ${data.toString()}`);
         });
 
         this.currentProcess.on("exit", (code) => {
-            console.log(`[Internet Radio - mpv exited] code: ${code}`);
+            logger.log(`[Internet Radio - mpv exited] code: ${code}`);
             // Must unlink the path captured for THIS process, not this.ipcPath, which may
             // already belong to a newer process by the time this (delayed) exit fires.
             fs.unlink(ipcPath, () => {});
@@ -123,9 +124,9 @@ export class InternetRadioAudioProvider implements AudioProvider {
         try {
             this.currentProcess.kill();
             this.currentProcess = undefined;
-            console.log("[Internet Radio] Stopped internet radio playback!");
+            logger.log("[Internet Radio] Stopped internet radio playback!");
         }catch {
-            console.error("[Internet Radio] Error stopping internet radio playback!");
+            logger.error("[Internet Radio] Error stopping internet radio playback!");
         }
     }
 

@@ -1,5 +1,6 @@
 import { Gpio } from "onoff";
 import { InputPort } from "../../core/ports/InputPort";
+import { logger } from "../../core/util/Logger";
 
 export interface GpioInputAdapterOptions {
     powerButtonPin: number;
@@ -105,7 +106,7 @@ export class GpioInputAdapter implements InputPort {
     start(): void {
         this.powerBtn.watch((err) => {
             if (err) {
-                console.error("[GpioInput] power button watch error:", err);
+                logger.error("[GpioInput] power button watch error:", err);
                 return;
             }
             this.powerCallback?.();
@@ -113,7 +114,7 @@ export class GpioInputAdapter implements InputPort {
 
         this.modeBtn.watch((err) => {
             if (err) {
-                console.error("[GpioInput] mode button watch error:", err);
+                logger.error("[GpioInput] mode button watch error:", err);
                 return;
             }
             this.modeToggleCallback?.();
@@ -121,7 +122,7 @@ export class GpioInputAdapter implements InputPort {
 
         this.actionBtn.watch((err) => {
             if (err) {
-                console.error("[GpioInput] action button watch error:", err);
+                logger.error("[GpioInput] action button watch error:", err);
                 return;
             }
             this.actionCallback?.();
@@ -129,7 +130,7 @@ export class GpioInputAdapter implements InputPort {
 
         this.encoderBtn.watch((err) => {
             if (err) {
-                console.error("[GpioInput] encoder button watch error:", err);
+                logger.error("[GpioInput] encoder button watch error:", err);
                 return;
             }
             this.volumeMuteCallback?.();
@@ -137,7 +138,7 @@ export class GpioInputAdapter implements InputPort {
 
         const onEncoderEdge = (err: Error | null | undefined) => {
             if (err) {
-                console.error("[GpioInput] encoder watch error:", err);
+                logger.error("[GpioInput] encoder watch error:", err);
                 return;
             }
             this.handleEncoderEdge();
@@ -145,7 +146,7 @@ export class GpioInputAdapter implements InputPort {
         this.encoderA.watch(onEncoderEdge);
         this.encoderB.watch(onEncoderEdge);
 
-        console.log("[GpioInput] GpioInputAdapter started.");
+        logger.log("[GpioInput] GpioInputAdapter started.");
     }
 
     private handleEncoderEdge(): void {

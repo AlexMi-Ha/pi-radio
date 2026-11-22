@@ -3,6 +3,7 @@ import { Mode } from "../../core/models/State";
 import { AudioPort } from "../../core/ports/AudioPort";
 import { clamp } from "../../core/util/util";
 import { AudioProvider } from "./AudioProvider";
+import { logger } from "../../core/util/Logger";
 
 export class AudioAdapter implements AudioPort {
 
@@ -59,7 +60,7 @@ export class AudioAdapter implements AudioPort {
                 // A failed cleanup of the old provider must not block starting the new
                 // one - otherwise a stuck/erroring provider (e.g. Bluetooth with no
                 // adapter available) permanently prevents switching to any other mode.
-                console.error('[Audio] Failed to stop previous provider:', err);
+                logger.error('[Audio] Failed to stop previous provider:', err);
             }
         }
         this.currentProvider = nextProvider;
