@@ -84,6 +84,25 @@ describe('ApiAdapter', () => {
         expect(res.body).toEqual({ name: 'A', value: 'a' });
     });
 
+    test('POST /api/mute returns 501 when setMute callback is not implemented', async () => {
+        const res = await request(port, 'POST', '/api/mute', { muted: true });
+
+        expect(res.status).toBe(501);
+    });
+
+    test('POST /api/mute invokes the setMute callback', async () => {
+        const setMute = jest.fn().mockResolvedValue(undefined);
+        const getState = jest.fn().mockReturnValue({ muted: true });
+        adapter.onSetMute(setMute);
+        adapter.onGetState(getState);
+
+        const res = await request(port, 'POST', '/api/mute', { muted: true });
+
+        expect(res.status).toBe(200);
+        expect(setMute).toHaveBeenCalledWith(true);
+        expect(res.body).toEqual({ muted: true });
+    });
+
     test('POST /api/preset/:mode/:presetId rejects an out-of-range id', async () => {
         const res = await request(port, 'POST', '/api/preset/internet_radio/5', { value: 'x' });
 

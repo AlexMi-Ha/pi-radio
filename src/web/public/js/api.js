@@ -12,6 +12,9 @@ class Api {
     async setVolume(vol) {
         return await this.post('/volume', {'volume': vol});
     }
+    async setMute(muted) {
+        return await this.post('/mute', {'muted': muted});
+    }
     async setCurrentPreset(idx) {
         return await this.post('/preset', {'preset': idx});
     }

@@ -7,6 +7,7 @@ export interface GpioInputAdapterOptions {
     actionButtonPin: number;
     encoderAPin: number;
     encoderBPin: number;
+    encoderButtonPin: number;
     buttonDebounceMs?: number;
     volumeStepPerDetent?: number;
 }
@@ -35,6 +36,7 @@ QUADRATURE_STEP[1 * 4 + 0] = -1;
 
 export class GpioInputAdapter implements InputPort {
     private volumeCallback?: (delta: number) => void;
+    private volumeMuteCallback?: () => void;
     private modeToggleCallback?: () => void;
     private actionCallback?: () => void;
     private powerCallback?: () => void;
@@ -46,6 +48,7 @@ export class GpioInputAdapter implements InputPort {
     private actionBtn: Gpio;
     private encoderA: Gpio;
     private encoderB: Gpio;
+    private encoderBtn: Gpio;
 
     // Quadrature decoder state (see QUADRATURE_STEP above).
     private lastPinState = 0;
@@ -67,6 +70,10 @@ export class GpioInputAdapter implements InputPort {
             debounceTimeout,
             activeLow: true,
         });
+        this.encoderBtn = new Gpio(options.encoderButtonPin, "in", "falling", {
+            debounceTimeout,
+            activeLow: true,
+        });
 
         // No debounce on the encoder pins: contact bounce is instead
         // rejected by the quadrature FSM, which only counts full,
@@ -77,6 +84,10 @@ export class GpioInputAdapter implements InputPort {
 
     onVolumeChange(callback: (delta: number) => void): void {
         this.volumeCallback = callback;
+    }
+
+    onVolumeMute(callback: () => void): void {
+        this.volumeMuteCallback = callback;
     }
 
     onModeToggle(callback: () => void): void {
@@ -116,6 +127,14 @@ export class GpioInputAdapter implements InputPort {
             this.actionCallback?.();
         });
 
+        this.encoderBtn.watch((err) => {
+            if (err) {
+                console.error("[GpioInput] encoder button watch error:", err);
+                return;
+            }
+            this.volumeMuteCallback?.();
+        });
+
         const onEncoderEdge = (err: Error | null | undefined) => {
             if (err) {
                 console.error("[GpioInput] encoder watch error:", err);
@@ -152,11 +171,13 @@ export class GpioInputAdapter implements InputPort {
         this.actionBtn.unwatchAll();
         this.encoderA.unwatchAll();
         this.encoderB.unwatchAll();
+        this.encoderBtn.unwatchAll();
 
         this.powerBtn.unexport();
         this.modeBtn.unexport();
         this.actionBtn.unexport();
         this.encoderA.unexport();
         this.encoderB.unexport();
+        this.encoderBtn.unexport();
     }
 }

@@ -114,6 +114,18 @@ The Kitchen Radio exposes a REST API for controlling power, mode, volume, and pr
 - Response: Returns the updated state.
 
 
+### Set Mute
+
+- Endpoint: POST /api/mute
+- Body:
+```json
+{
+  "muted": true
+}
+```
+- Response: Returns the updated state.
+
+
 ### Set Current Preset
 
 - Endpoint: POST /api/preset

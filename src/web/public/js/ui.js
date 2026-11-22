@@ -25,6 +25,7 @@ const el = {
 
     volumeSlider: document.getElementById('volume_slider'),
     volumeValue: document.getElementById('volume_value'),
+    muteBtn: document.getElementById('mute_btn'),
 
     toast: document.getElementById('toast'),
 };
@@ -72,6 +73,17 @@ function wireEvents() {
             showError(err);
         }
     });
+
+    el.muteBtn.addEventListener('click', toggleMute);
+}
+
+async function toggleMute() {
+    try {
+        const state = await api.setMute(!currentState?.muted);
+        render(state);
+    } catch (err) {
+        showError(err);
+    }
 }
 
 async function togglePower() {
@@ -175,6 +187,9 @@ function render(state) {
         el.volumeSlider.value = state.volume;
         el.volumeValue.textContent = Math.round(state.volume) + '%';
     }
+
+    el.muteBtn.classList.toggle('is-muted', !!state.muted);
+    el.volumeValue.textContent = state.muted ? 'Muted' : Math.round(state.volume) + '%';
 }
 
 function renderMode(mode) {

@@ -16,6 +16,7 @@ export class ApiAdapter implements ApiPort {
         setPower?: (state: Power) => Promise<void>,
         setMode?: (mode: Mode) => Promise<void>,
         setVolume?: (vol: number) => Promise<void>,
+        setMute?: (muted: boolean) => Promise<void>,
         setPreset?: (idx: number) => Promise<void>
         getState? : () => State
     } = {};
@@ -28,6 +29,9 @@ export class ApiAdapter implements ApiPort {
     }
     onSetVolume(callback: (vol: number) => Promise<void>): void {
         this.callbacks.setVolume = callback;
+    }
+    onSetMute(callback: (muted: boolean) => Promise<void>): void {
+        this.callbacks.setMute = callback;
     }
     onSetPreset(callback: (idx: number) => Promise<void>): void {
         this.callbacks.setPreset = callback;
@@ -98,6 +102,18 @@ export class ApiAdapter implements ApiPort {
             }
             const {volume} = req.body;
             await this.callbacks.setVolume(volume);
+
+            res.json(this.callbacks.getState?.());
+        });
+
+        this.app.post('/api/mute', async (req,res) => {
+            if(!this.callbacks.setMute) {
+                res.statusCode = 501;
+                res.send('setMute callback not implemented');
+                return;
+            }
+            const {muted} = req.body;
+            await this.callbacks.setMute(muted);
 
             res.json(this.callbacks.getState?.());
         });

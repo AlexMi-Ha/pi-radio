@@ -43,6 +43,7 @@ describe("GpioInputAdapter", () => {
     let actionBtn: MockGpioInstance;
     let encoderA: MockGpioInstance;
     let encoderB: MockGpioInstance;
+    let encoderBtn: MockGpioInstance;
 
     beforeEach(() => {
         instances.length = 0;
@@ -52,9 +53,10 @@ describe("GpioInputAdapter", () => {
             actionButtonPin: 22,
             encoderAPin: 23,
             encoderBPin: 24,
+            encoderButtonPin: 25,
         });
 
-        [powerBtn, modeBtn, actionBtn, encoderA, encoderB] = instances;
+        [powerBtn, modeBtn, actionBtn, encoderBtn, encoderA, encoderB] = instances;
         adapter.start();
     });
 
@@ -99,6 +101,16 @@ describe("GpioInputAdapter", () => {
         adapter.onActionPress(cb);
 
         const watchCallback = actionBtn.watch.mock.calls[0][0];
+        watchCallback(null);
+
+        expect(cb).toHaveBeenCalledTimes(1);
+    });
+
+    test("encoder button press fires onVolumeMute callback", () => {
+        const cb = jest.fn();
+        adapter.onVolumeMute(cb);
+
+        const watchCallback = encoderBtn.watch.mock.calls[0][0];
         watchCallback(null);
 
         expect(cb).toHaveBeenCalledTimes(1);
@@ -182,9 +194,10 @@ describe("GpioInputAdapter", () => {
             actionButtonPin: 22,
             encoderAPin: 23,
             encoderBPin: 24,
+            encoderButtonPin: 25,
             volumeStepPerDetent: 5,
         });
-        const [, , , eA, eB] = instances;
+        const [, , , , eA, eB] = instances;
         customAdapter.start();
 
         const cb = jest.fn();
@@ -209,7 +222,7 @@ describe("GpioInputAdapter", () => {
     test("stop unwatches and unexports all gpio lines", () => {
         adapter.stop();
 
-        for (const instance of [powerBtn, modeBtn, actionBtn, encoderA, encoderB]) {
+        for (const instance of [powerBtn, modeBtn, actionBtn, encoderA, encoderB, encoderBtn]) {
             expect(instance.unwatchAll).toHaveBeenCalledTimes(1);
             expect(instance.unexport).toHaveBeenCalledTimes(1);
         }

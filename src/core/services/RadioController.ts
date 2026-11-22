@@ -22,6 +22,7 @@ export class RadioController {
     private powerAsyncProcessor: AsyncProcessor;
     private modeAsyncProcessor: AsyncProcessor;
     private volumeAsyncProcessor: AsyncProcessor;
+    private muteAsyncProcessor: AsyncProcessor;
     private presetAsyncProcessor: AsyncProcessor;
     private pairingAsyncProcessor: AsyncProcessor;
 
@@ -47,6 +48,7 @@ export class RadioController {
         this.powerAsyncProcessor = new AsyncProcessor();
         this.modeAsyncProcessor = new AsyncProcessor();
         this.volumeAsyncProcessor = new AsyncProcessor();
+        this.muteAsyncProcessor = new AsyncProcessor();
         this.presetAsyncProcessor = new AsyncProcessor();
         this.pairingAsyncProcessor = new AsyncProcessor();
     }
@@ -79,6 +81,9 @@ export class RadioController {
         this.inputPort.onVolumeChange((delta: number) => {
             this.volumeAsyncProcessor.runSafe(() => this.onSetVolume(this.state.volume + delta));
         });
+        this.inputPort.onVolumeMute(() => {
+            this.muteAsyncProcessor.runSafe(() => this.onSetMute(!this.state.muted));
+        });
         this.inputPort.onPowerToggle(() => {
             if(this.state.power == "power") {
                 this.powerAsyncProcessor.runSafe(() => this.onSetPower("idle"));
@@ -94,6 +99,7 @@ export class RadioController {
         this.apiPort.onSetMode(async (m) => this.modeAsyncProcessor.runSafe(() => this.onSetMode(m)));
         this.apiPort.onSetPreset(async (p) => this.presetAsyncProcessor.runSafe(() => this.onSetPreset(p)));
         this.apiPort.onSetVolume(async (v) => this.volumeAsyncProcessor.runSafe(() => this.onSetVolume(v)));
+        this.apiPort.onSetMute(async (m) => this.muteAsyncProcessor.runSafe(() => this.onSetMute(m)));
     }
 
     private async onSetPower(power: Power) : Promise<void> {
@@ -151,7 +157,18 @@ export class RadioController {
 
     private async onSetVolume(vol: number): Promise<void> {
         this.state.volume = clamp(0, 100, vol);
-        await this.audioPort.setVolume(this.state.volume);
+        if(!this.state.muted) {
+            await this.audioPort.setVolume(this.state.volume);
+        }
+    }
+
+    private async onSetMute(muted: boolean): Promise<void> {
+        if(this.state.muted == muted) {
+            return;
+        }
+        this.state.muted = muted;
+        this.refreshDisplay();
+        await this.audioPort.setVolume(this.state.muted ? 0 : this.state.volume);
     }
 
     private async onEnablePairing(): Promise<void> {
@@ -182,20 +199,31 @@ export class RadioController {
     }
 
     private refreshDisplay() {
+        const [line1, line2, options] = this.displayLines();
+        if(this.state.muted) {
+            this.displayPort.showLines(line1, "MUTED", { blink: true });
+        }else if(options) {
+            this.displayPort.showLines(line1, line2, options);
+        }else {
+            this.displayPort.showLines(line1, line2);
+        }
+    }
+
+    private displayLines(): [string, string | undefined, { blink?: boolean } | undefined] {
         if(this.state.mode == "internet_radio") {
             const name = this.presetPort.getNameByPreset("internet_radio", this.state.preset);
             const value = this.presetPort.getValueByPreset("internet_radio", this.state.preset);
             const station = name || value || "No station set";
-            this.displayPort.showLines(station, this.state.nowPlaying.title);
+            return [station, this.state.nowPlaying.title, undefined];
         }else {
             // No real BlueZ connection-state tracking yet (BluetoothAudioProvider is a
             // stub), so "paired" is approximated by having live track metadata.
             if(this.state.pairing) {
-                this.displayPort.showLines("Pairing", this.state.nowPlaying.title, { blink: true });
+                return ["Pairing", this.state.nowPlaying.title, { blink: true }];
             }else if(this.state.nowPlaying.title) {
-                this.displayPort.showLines("Paired", this.state.nowPlaying.title);
+                return ["Paired", this.state.nowPlaying.title, undefined];
             }else {
-                this.displayPort.showLines("Bluetooth", "Not Paired");
+                return ["Bluetooth", "Not Paired", undefined];
             }
         }
     }

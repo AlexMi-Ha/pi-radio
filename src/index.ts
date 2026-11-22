@@ -18,6 +18,7 @@ const initialState: State = {
   volume: 50,
   preset: 0,
   pairing: false,
+  muted: false,
   nowPlaying: {},
 };
 
@@ -33,6 +34,7 @@ const inputAdapter = useHardware
       actionButtonPin: parseInt(process.env.PI_RADIO_GPIO_ACTION_BTN ?? "22", 10),
       encoderAPin: parseInt(process.env.PI_RADIO_GPIO_ENCODER_A ?? "23", 10),
       encoderBPin: parseInt(process.env.PI_RADIO_GPIO_ENCODER_B ?? "24", 10),
+      encoderButtonPin: parseInt(process.env.PI_RADIO_GPIO_ENCODER_BTN ?? "25", 10),
     })
   : new MockInputAdapter();
 

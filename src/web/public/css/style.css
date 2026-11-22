@@ -338,6 +338,14 @@ body {
     display: inline-flex;
     color: var(--text-dim);
     flex-shrink: 0;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+}
+
+.volume__icon.is-muted {
+    color: var(--danger);
 }
 
 .volume__icon svg {
