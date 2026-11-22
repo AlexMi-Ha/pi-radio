@@ -41,7 +41,8 @@ describe('RadioController', () => {
 
         displayPort = {
             showLines: jest.fn(),
-            showTransient: jest.fn()
+            showTransient: jest.fn(),
+            setPower: jest.fn()
         };
 
         audioPort = {
@@ -116,6 +117,7 @@ describe('RadioController', () => {
         expect(audioPort.setVolume).toHaveBeenCalledWith(state.volume);
         expect(outputPort.setMode).toHaveBeenCalled();
         expect(outputPort.setPresetState).toHaveBeenCalled();
+        expect(displayPort.setPower).toHaveBeenCalledWith(true);
     });
 
     test('turns power OFF via input toggle', async () => {
@@ -129,6 +131,7 @@ describe('RadioController', () => {
         expect(state.power).toBe("idle");
         expect(audioPort.stop).toHaveBeenCalled();
         expect(outputPort.idle).toHaveBeenCalled();
+        expect(displayPort.setPower).toHaveBeenCalledWith(false);
     });
 
     test('persists mode/volume/preset via settingsPort when turning power OFF', async () => {

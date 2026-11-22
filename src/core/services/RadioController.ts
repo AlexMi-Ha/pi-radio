@@ -129,7 +129,9 @@ export class RadioController {
             });
             await this.audioPort.stop();
             this.outputPort.idle();
+            this.displayPort.setPower(false);
         }else {
+            this.displayPort.setPower(true);
             await this.onSetMode(this.state.mode, true);
             await this.onSetVolume(this.state.volume);
         }

@@ -10,4 +10,8 @@ export class MockDisplayPort implements DisplayPort {
     showTransient(line1: string, line2?: string, durationMs: number = 2000): void {
         logger.log(`[Display] transient "${line1}" / "${line2 ?? ""}" for ${durationMs}ms`);
     }
+
+    setPower(on: boolean): void {
+        logger.log(`[Display] power ${on ? "on" : "off"}`);
+    }
 }
