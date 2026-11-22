@@ -71,11 +71,12 @@ cmd_deploy() {
 
     local bdir
     bdir="$(boot_dir)"
-    echo "== Setting up persistent preset storage on $bdir =="
+    echo "== Setting up persistent preset/settings storage on $bdir =="
     mkdir -p "$bdir/pi-radio"
     chown "$APP_USER:$APP_USER" "$bdir/pi-radio"
     {
         echo "PI_RADIO_PRESETS_PATH=$bdir/pi-radio/presets.json"
+        echo "PI_RADIO_SETTINGS_PATH=$bdir/pi-radio/settings.json"
         echo "PI_RADIO_USE_HARDWARE=true"
     } > "$ENV_FILE"
 
