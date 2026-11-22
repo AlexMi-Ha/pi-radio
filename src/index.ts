@@ -18,6 +18,7 @@ const initialState: State = {
   volume: 50,
   preset: 0,
   pairing: false,
+  connected: false,
   muted: false,
   nowPlaying: {},
 };

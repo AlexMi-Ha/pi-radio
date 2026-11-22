@@ -13,6 +13,7 @@ export class State {
     volume: number;
     preset: number;
     pairing: boolean;
+    connected: boolean;
     muted: boolean;
     nowPlaying: { title?: string, subtitle?: string };
 
@@ -22,6 +23,7 @@ export class State {
         this.volume = 50;
         this.preset = 0;
         this.pairing = false;
+        this.connected = false;
         this.muted = false;
         this.nowPlaying = {};
     }

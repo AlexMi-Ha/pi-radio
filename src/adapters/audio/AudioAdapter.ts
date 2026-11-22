@@ -9,6 +9,7 @@ export class AudioAdapter implements AudioPort {
     private providers: Map<Mode, AudioProvider>;
     private currentProvider?: AudioProvider;
     private nowPlayingCallback?: (info: { title?: string, subtitle?: string }) => void;
+    private connectionCallback?: (connected: boolean) => void;
 
     constructor(providers: AudioProvider[]) {
         this.providers = new Map(
@@ -42,6 +43,10 @@ export class AudioAdapter implements AudioPort {
         this.nowPlayingCallback = callback;
     }
 
+    onConnectionChanged(callback: (connected: boolean) => void): void {
+        this.connectionCallback = callback;
+    }
+
     private async cycleProvider(nextMode: Mode) {
         const nextProvider = this.providers.get(nextMode);
         if(!nextProvider) {
@@ -59,6 +64,7 @@ export class AudioAdapter implements AudioPort {
         }
         this.currentProvider = nextProvider;
         this.currentProvider.onNowPlayingChanged?.((info) => this.nowPlayingCallback?.(info));
+        this.currentProvider.onConnectionChanged?.((connected) => this.connectionCallback?.(connected));
     }
 
     private setSystemVolume(volume: number): Promise<void> {

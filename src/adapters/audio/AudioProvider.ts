@@ -14,4 +14,9 @@ export interface AudioProvider {
 
     // Optional: only meaningful for providers that support a pairing flow (Bluetooth).
     enablePairing?(): Promise<void>;
+
+    // Optional: providers that can report live connection state (e.g. Bluetooth,
+    // once a remote device actually connects over A2DP) call this when it changes.
+    // Providers with no such concept simply never invoke it.
+    onConnectionChanged?(callback: (connected: boolean) => void): void;
 }

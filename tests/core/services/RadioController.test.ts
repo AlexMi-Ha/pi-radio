@@ -48,7 +48,8 @@ describe('RadioController', () => {
             enablePairing: jest.fn().mockResolvedValue(undefined),
             stop: jest.fn().mockResolvedValue(undefined),
             setVolume: jest.fn().mockResolvedValue(undefined),
-            onNowPlayingChanged: jest.fn()
+            onNowPlayingChanged: jest.fn(),
+            onConnectionChanged: jest.fn()
         };
 
         apiPort = {
@@ -73,6 +74,7 @@ describe('RadioController', () => {
             preset: 1,
             volume: 50,
             pairing: false,
+            connected: false,
             muted: false,
             nowPlaying: {}
         };
@@ -330,6 +332,53 @@ describe('RadioController', () => {
 
         expect(state.nowPlaying).toEqual({ title: "Some Song" });
         expect(displayPort.showLines).toHaveBeenCalledWith('http://example.com/station', 'Some Song');
+    });
+
+    // ------------------------
+    // CONNECTION (Bluetooth)
+    // ------------------------
+
+    test('device connecting clears pairing state and marks state as connected', () => {
+        state.mode = "bluetooth";
+        state.pairing = true;
+        let handler: any;
+        audioPort.onConnectionChanged.mockImplementation((cb: any) => handler = cb);
+
+        controller.init();
+
+        handler(true);
+
+        expect(state.connected).toBe(true);
+        expect(state.pairing).toBe(false);
+        expect(outputPort.setPairingState).toHaveBeenCalledWith(false);
+        expect(displayPort.showLines).toHaveBeenCalledWith('Paired', undefined);
+    });
+
+    test('device disconnecting marks state as not connected', () => {
+        state.mode = "bluetooth";
+        state.connected = true;
+        let handler: any;
+        audioPort.onConnectionChanged.mockImplementation((cb: any) => handler = cb);
+
+        controller.init();
+
+        handler(false);
+
+        expect(state.connected).toBe(false);
+        expect(displayPort.showLines).toHaveBeenCalledWith('Bluetooth', 'Not Paired');
+    });
+
+    test('switching modes resets connected state', async () => {
+        state.mode = "bluetooth";
+        state.connected = true;
+        let handler: any;
+        apiPort.onSetMode.mockImplementation((cb: any) => handler = cb);
+
+        controller.init();
+
+        await handler("internet_radio");
+
+        expect(state.connected).toBe(false);
     });
 
     // ------------------------
