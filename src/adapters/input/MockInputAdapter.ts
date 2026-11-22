@@ -1,5 +1,6 @@
 import { InputPort } from "../../core/ports/InputPort";
 import readline from "readline";
+import { logger } from "../../core/util/Logger";
 
 export class MockInputAdapter implements InputPort {
     private volumeCallback?: (delta: number) => void;
@@ -38,12 +39,12 @@ export class MockInputAdapter implements InputPort {
     }
 
     start() {
-        console.log("[Input] MockInputAdapter started. Type commands:");
-        console.log("[Input] 'v <delta>' to change volume (e.g., v 5 or v -3)");
-        console.log("[Input] 'm' to press the encoder (toggle mute)");
-        console.log("[Input] 't' to toggle mode (internet_radio <-> bluetooth)");
-        console.log("[Input] 'a' to press the action button (cycle preset / trigger pairing)");
-        console.log("[Input] 'p' to toggle power (idle/active)");
+        logger.log("[Input] MockInputAdapter started. Type commands:");
+        logger.log("[Input] 'v <delta>' to change volume (e.g., v 5 or v -3)");
+        logger.log("[Input] 'm' to press the encoder (toggle mute)");
+        logger.log("[Input] 't' to toggle mode (internet_radio <-> bluetooth)");
+        logger.log("[Input] 'a' to press the action button (cycle preset / trigger pairing)");
+        logger.log("[Input] 'p' to toggle power (idle/active)");
 
         this.rl.on("line", (line) => {
             const parts = line.trim().split(" ");
@@ -73,7 +74,7 @@ export class MockInputAdapter implements InputPort {
                     break;
 
                 default:
-                    console.log("Unknown command. Use v/m/t/a/p.");
+                    logger.log("Unknown command. Use v/m/t/a/p.");
             }
         });
     }

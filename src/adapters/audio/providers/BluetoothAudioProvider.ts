@@ -2,6 +2,7 @@ import { exec } from "child_process";
 import * as dbus from "@homebridge/dbus-native";
 import { Mode } from "../../../core/models/State";
 import { AudioProvider } from "../AudioProvider";
+import { logger } from "../../../core/util/Logger";
 
 const BLUEZ_SERVICE = "org.bluez";
 const DEVICE_IFACE = "org.bluez.Device1";
@@ -71,7 +72,7 @@ export class BluetoothAudioProvider implements AudioProvider {
             // bus socket can fail to connect at any point (e.g. dbus-daemon restarts),
             // well after this initial connect attempt succeeded.
             bus.connection.on("error", (err: Error) =>
-                console.error("[Bluetooth] D-Bus connection error:", err)
+                logger.error("[Bluetooth] D-Bus connection error:", err)
             );
             this.bus = bus;
 
@@ -83,7 +84,7 @@ export class BluetoothAudioProvider implements AudioProvider {
 
             const addedHandler = (path: string, interfaces: { [iface: string]: PropsDict }) => {
                 this.trackObject(path, interfaces).catch((err) =>
-                    console.error("[Bluetooth] Failed to track new D-Bus object:", err)
+                    logger.error("[Bluetooth] Failed to track new D-Bus object:", err)
                 );
             };
             objectManager.on("InterfacesAdded", addedHandler);
@@ -92,7 +93,7 @@ export class BluetoothAudioProvider implements AudioProvider {
             // No D-Bus/BlueZ available (e.g. a dev machine with no Bluetooth adapter, or
             // bluetoothd not running) - pairing itself still works via bluetoothctl above;
             // AVRCP metadata and live connection tracking are simply unavailable.
-            console.error("[Bluetooth] D-Bus connection unavailable, live status disabled:", err);
+            logger.error("[Bluetooth] D-Bus connection unavailable, live status disabled:", err);
         }
     }
 
@@ -184,7 +185,7 @@ export class BluetoothAudioProvider implements AudioProvider {
         return new Promise((resolve, reject) => {
             exec(command, { timeout: 5000 }, (err) => {
                 if(err) {
-                    console.error("[Bluetooth] Command failed: " + command, err);
+                    logger.error("[Bluetooth] Command failed: " + command, err);
                     reject(err);
                 }else {
                     resolve();

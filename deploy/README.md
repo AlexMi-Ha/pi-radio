@@ -91,6 +91,28 @@ restart the service (`sudo systemctl restart pi-radio`).
 > confirm all of this after deploying to an actual Pi with the parts wired
 > up.
 
+### Logging
+
+By default, logs only go to the console (captured by systemd/journald -
+`journalctl -u pi-radio`). To additionally mirror log output to a file, set
+in `/etc/default/pi-radio`:
+
+| Variable                          | Default              | Meaning                                       |
+|------------------------------------|----------------------|------------------------------------------------|
+| `PI_RADIO_LOG_TO_FILE`             | `false`              | Set to `true` to enable file logging           |
+| `PI_RADIO_LOG_FILE_PATH`           | `logs/pi-radio.log`  | Path of the log file (appended to)             |
+| `PI_RADIO_LOG_MAX_FILE_SIZE_BYTES` | `5242880` (5MB)      | Size at which the log file is rotated          |
+| `PI_RADIO_LOG_MAX_FILES`           | `3`                  | Rotated backups kept (`<path>.1` .. `<path>.N`)|
+
+The log file's parent directory is created automatically if missing. Once
+the active file reaches `PI_RADIO_LOG_MAX_FILE_SIZE_BYTES`, it's rotated to
+`<path>.1` (bumping older backups up to `.2`, `.3`, ...) and a fresh file is
+started, so disk usage stays bounded (at most roughly
+`maxFileSizeBytes * (maxFiles + 1)`) instead of growing forever. If the
+read-only overlay (see above) is enabled, point `PI_RADIO_LOG_FILE_PATH` at
+the same writable boot partition used for `PI_RADIO_PRESETS_PATH`, otherwise
+writes will fail once the overlay is active.
+
 ### Bluetooth
 
 No extra setup is needed beyond the `bluez` package `provision.sh` already

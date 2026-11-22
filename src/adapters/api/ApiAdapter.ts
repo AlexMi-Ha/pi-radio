@@ -4,6 +4,7 @@ import path from "path";
 import { Power, PresetMode ,Mode, State, isPresetMode, _presetModes } from "../../core/models/State";
 import { ApiPort } from "../../core/ports/ApiPort";
 import { Preset, PresetPort } from "../../core/ports/PresetPort";
+import { logger } from "../../core/util/Logger";
 
 export class ApiAdapter implements ApiPort {
 
@@ -193,7 +194,7 @@ export class ApiAdapter implements ApiPort {
 
     public start() {
         this.server = this.app.listen(this.port, () => {
-            console.log(`[Api] API server running on http://localhost:${this.port}`)
+            logger.log(`[Api] API server running on http://localhost:${this.port}`)
         });
     }
 
