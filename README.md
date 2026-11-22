@@ -132,7 +132,13 @@ The Kitchen Radio exposes a REST API for controlling power, mode, volume, and pr
 - Response:
 ```json
 {
-  "internet_radio": ["http://station1.com", "http://station2.com", "", "", ""]
+  "internet_radio": [
+    { "name": "Station One", "value": "http://station1.com" },
+    { "name": "", "value": "http://station2.com" },
+    { "name": "", "value": "" },
+    { "name": "", "value": "" },
+    { "name": "", "value": "" }
+  ]
 }
 ```
 
@@ -142,7 +148,13 @@ The Kitchen Radio exposes a REST API for controlling power, mode, volume, and pr
 - :mode can only be "internet_radio" (the only mode with presets)
 - Response:
 ```json
-["http://station1.com", "http://station2.com", "", "", ""]
+[
+  { "name": "Station One", "value": "http://station1.com" },
+  { "name": "", "value": "http://station2.com" },
+  { "name": "", "value": "" },
+  { "name": "", "value": "" },
+  { "name": "", "value": "" }
+]
 ```
 
 ### Get Preset By Index
@@ -150,18 +162,20 @@ The Kitchen Radio exposes a REST API for controlling power, mode, volume, and pr
 - Endpoint: GET /api/preset/:mode/:presetId
 - Response:
 ```json
-"http://station1.com"
+{ "name": "Station One", "value": "http://station1.com" }
 ```
 
-### Set Preset Value
+### Set Preset Name and/or Value
 
 - Endpoint: POST /api/preset/:mode/:presetId
-- Body:
+- Body (either or both fields; omitted fields are left unchanged):
 ```json
 {
+  "name": "My Station",
   "value": "http://newstation.com"
 }
 ```
+- Response: the updated preset, e.g. `{ "name": "My Station", "value": "http://newstation.com" }`
 
 </details>
 <br><br>
