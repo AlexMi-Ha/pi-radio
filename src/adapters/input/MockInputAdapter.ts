@@ -1,13 +1,12 @@
-import { Mode } from "../../core/models/State";
 import { InputPort } from "../../core/ports/InputPort";
 import readline from "readline";
 
 export class MockInputAdapter implements InputPort {
     private volumeCallback?: (delta: number) => void;
-    private modeCallback?: (mode: Mode) => void;
-    private presetCallback?: (id: number) => void;
+    private volumeMuteCallback?: () => void;
+    private modeToggleCallback?: () => void;
+    private actionCallback?: () => void;
     private powerCallback?: () => void;
-    private fmFreqCallback?: (delta: number) => void;
 
     private rl: readline.Interface;
 
@@ -17,20 +16,21 @@ export class MockInputAdapter implements InputPort {
             output: process.stdout,
         });
     }
-    onFMFrequencyChange(callback: (delta: number) => void): void {
-        this.fmFreqCallback = callback;
-    }
 
     onVolumeChange(callback: (delta: number) => void): void {
         this.volumeCallback = callback;
     }
 
-    onModeSelect(callback: (mode: Mode) => void): void {
-        this.modeCallback = callback;
+    onVolumeMute(callback: () => void): void {
+        this.volumeMuteCallback = callback;
     }
 
-    onPresetSelect(callback: (id: number) => void): void {
-        this.presetCallback = callback;
+    onModeToggle(callback: () => void): void {
+        this.modeToggleCallback = callback;
+    }
+
+    onActionPress(callback: () => void): void {
+        this.actionCallback = callback;
     }
 
     onPowerToggle(callback: () => void): void {
@@ -40,8 +40,9 @@ export class MockInputAdapter implements InputPort {
     start() {
         console.log("[Input] MockInputAdapter started. Type commands:");
         console.log("[Input] 'v <delta>' to change volume (e.g., v 5 or v -3)");
-        console.log("[Input] 'm <mode>' to change mode (e.g., m internet_radio)");
-        console.log("[Input] 'f <id>' to press preset button (e.g., f 1)");
+        console.log("[Input] 'm' to press the encoder (toggle mute)");
+        console.log("[Input] 't' to toggle mode (internet_radio <-> bluetooth)");
+        console.log("[Input] 'a' to press the action button (cycle preset / trigger pairing)");
         console.log("[Input] 'p' to toggle power (idle/active)");
 
         this.rl.on("line", (line) => {
@@ -56,12 +57,15 @@ export class MockInputAdapter implements InputPort {
                     break;
 
                 case "m":
-                    if (arg == "internet_radio" || arg == "fm" || arg == "bluetooth") this.modeCallback?.(arg);
+                    this.volumeMuteCallback?.();
                     break;
 
-                case "f":
-                    const id = parseInt(arg!, 10);
-                    if (!isNaN(id)) this.presetCallback?.(id);
+                case "t":
+                    this.modeToggleCallback?.();
+                    break;
+
+                case "a":
+                    this.actionCallback?.();
                     break;
 
                 case "p":
@@ -69,7 +73,7 @@ export class MockInputAdapter implements InputPort {
                     break;
 
                 default:
-                    console.log("Unknown command. Use v/m/f/p.");
+                    console.log("Unknown command. Use v/m/t/a/p.");
             }
         });
     }

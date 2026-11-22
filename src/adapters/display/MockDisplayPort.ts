@@ -1,0 +1,12 @@
+import { DisplayPort } from "../../core/ports/DisplayPort";
+
+export class MockDisplayPort implements DisplayPort {
+
+    showLines(line1: string, line2?: string, options?: { blink?: boolean }): void {
+        console.log(`[Display] "${line1}" / "${line2 ?? ""}"` + (options?.blink ? " (blinking)" : ""));
+    }
+
+    showTransient(line1: string, line2?: string, durationMs: number = 2000): void {
+        console.log(`[Display] transient "${line1}" / "${line2 ?? ""}" for ${durationMs}ms`);
+    }
+}

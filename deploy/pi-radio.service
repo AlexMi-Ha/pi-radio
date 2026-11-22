@@ -1,0 +1,15 @@
+[Unit]
+Description=Kitchen Radio
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+User=pi
+WorkingDirectory=/opt/pi-radio
+ExecStart=/usr/bin/node dist/index.js
+EnvironmentFile=-/etc/default/pi-radio
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

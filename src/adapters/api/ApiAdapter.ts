@@ -1,19 +1,22 @@
 import express from "express";
+import http from "http";
 import path from "path";
 import { Power, PresetMode ,Mode, State, isPresetMode, _presetModes } from "../../core/models/State";
 import { ApiPort } from "../../core/ports/ApiPort";
-import { PresetPort } from "../../core/ports/PresetPort";
+import { Preset, PresetPort } from "../../core/ports/PresetPort";
 
 export class ApiAdapter implements ApiPort {
 
     private app;
+    private server?: http.Server;
     private port: number;
     private presetPort : PresetPort;
-    
+
     private callbacks: {
         setPower?: (state: Power) => Promise<void>,
         setMode?: (mode: Mode) => Promise<void>,
         setVolume?: (vol: number) => Promise<void>,
+        setMute?: (muted: boolean) => Promise<void>,
         setPreset?: (idx: number) => Promise<void>
         getState? : () => State
     } = {};
@@ -26,6 +29,9 @@ export class ApiAdapter implements ApiPort {
     }
     onSetVolume(callback: (vol: number) => Promise<void>): void {
         this.callbacks.setVolume = callback;
+    }
+    onSetMute(callback: (muted: boolean) => Promise<void>): void {
+        this.callbacks.setMute = callback;
     }
     onSetPreset(callback: (idx: number) => Promise<void>): void {
         this.callbacks.setPreset = callback;
@@ -100,6 +106,18 @@ export class ApiAdapter implements ApiPort {
             res.json(this.callbacks.getState?.());
         });
 
+        this.app.post('/api/mute', async (req,res) => {
+            if(!this.callbacks.setMute) {
+                res.statusCode = 501;
+                res.send('setMute callback not implemented');
+                return;
+            }
+            const {muted} = req.body;
+            await this.callbacks.setMute(muted);
+
+            res.json(this.callbacks.getState?.());
+        });
+
         this.app.post('/api/preset', async (req,res) => {
             if(!this.callbacks.setPreset) {
                 res.statusCode = 501;
@@ -113,9 +131,9 @@ export class ApiAdapter implements ApiPort {
         });
 
         this.app.get('/api/preset', (req, res) => {
-            const presets = new Map<PresetMode, string[]>(); 
+            const presets: Record<string, Preset[]> = {};
             for(const presetMode of _presetModes) {
-                presets.set(presetMode, this.presetPort.getAllPresets(presetMode));
+                presets[presetMode] = this.presetPort.getAllPresets(presetMode);
             }
             res.json(presets);
         });
@@ -131,49 +149,67 @@ export class ApiAdapter implements ApiPort {
 
         this.app.get('/api/preset/:mode/:presetId', (req, res) => {
             const mode = req.params.mode;
-            const presetId = Number.parseInt(req.params.presetId, 10);
             if(!isPresetMode(mode)) {
                 res.statusCode = 400;
                 res.send("Unknown radio mode for presets");
                 return;
             }
             const presets = this.getPresetsOfMode(mode);
-            if(Number.isNaN(presetId) || presetId < 0 || presetId > this.presetPort.getNumPresets(mode) || presetId > presets.length - 1) {
+            const presetId = this.parsePresetId(req.params.presetId, presets.length);
+            if(presetId === undefined) {
                 res.statusCode = 400;
                 res.send("Invalid presetId");
                 return;
             }
-            
+
             res.json(presets[presetId]);
         });
 
         this.app.post('/api/preset/:mode/:presetId', (req, res) => {
             const mode = req.params.mode;
-            const presetId = Number.parseInt(req.params.presetId, 10);
-            const {value} = req.body;
+            const {value, name} = req.body;
             if(!isPresetMode(mode)) {
                 res.statusCode = 400;
                 res.send("Unknown radio mode for presets");
                 return;
             }
             const presets = this.getPresetsOfMode(mode);
-            if(Number.isNaN(presetId) || presetId < 0 || presetId > this.presetPort.getNumPresets(mode) || presetId > presets.length - 1) {
+            const presetId = this.parsePresetId(req.params.presetId, presets.length);
+            if(presetId === undefined) {
                 res.statusCode = 400;
                 res.send("Invalid presetId");
                 return;
             }
-            
-            this.presetPort.setValueForPreset(mode, presetId, value);
+
+            if(value !== undefined) {
+                this.presetPort.setValueForPreset(mode, presetId, value);
+            }
+            if(name !== undefined) {
+                this.presetPort.setNameForPreset(mode, presetId, name);
+            }
+            res.json(this.getPresetsOfMode(mode)[presetId]);
         });
     }
 
     public start() {
-        this.app.listen(this.port, () => {
+        this.server = this.app.listen(this.port, () => {
             console.log(`[Api] API server running on http://localhost:${this.port}`)
         });
     }
 
-    private getPresetsOfMode(mode: PresetMode): string[] {
+    public stop(): void {
+        this.server?.close();
+    }
+
+    private getPresetsOfMode(mode: PresetMode): Preset[] {
         return this.presetPort.getAllPresets(mode);
+    }
+
+    private parsePresetId(raw: string, numPresets: number): number | undefined {
+        const presetId = Number.parseInt(raw, 10);
+        if(Number.isNaN(presetId) || presetId < 0 || presetId >= numPresets) {
+            return undefined;
+        }
+        return presetId;
     }
 }

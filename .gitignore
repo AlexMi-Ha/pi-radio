@@ -4,8 +4,3 @@ dist/
 presets.json
 
 coverage
-
-deploy/
-image-builder/mnt
-*.img
-*.img.xz
