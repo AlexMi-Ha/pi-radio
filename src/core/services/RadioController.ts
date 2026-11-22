@@ -8,6 +8,7 @@ import { PresetPort } from "../ports/PresetPort";
 import { SettingsPort } from "../ports/SettingsPort";
 import { AsyncProcessor } from "../util/AsyncProcessor";
 import { clamp, wrap } from "../util/util";
+import { logger } from "../util/Logger";
 
 const MODES: Mode[] = ["internet_radio", "bluetooth"];
 
@@ -62,6 +63,7 @@ export class RadioController {
         this.configureApiAdapter();
 
         this.presetPort.onPresetsUpdated(() => {
+            logger.log("[RadioController] Presets updated, reapplying current mode");
             this.modeAsyncProcessor.runSafe(() => this.onSetMode(this.state.mode, true));
         });
 
@@ -71,6 +73,7 @@ export class RadioController {
         });
 
         this.audioPort.onConnectionChanged((connected) => {
+            logger.log(`[RadioController] Bluetooth connection changed: connected=${connected}`);
             this.state.connected = connected;
             if(connected) {
                 this.state.pairing = false;
@@ -116,6 +119,7 @@ export class RadioController {
     }
 
     private async onSetPower(power: Power) : Promise<void> {
+        logger.log(`[RadioController] Setting power: ${this.state.power} -> ${power}`);
         this.state.power = power;
         if(this.state.power == "idle") {
             this.settingsPort.save({
@@ -135,6 +139,7 @@ export class RadioController {
         if(mode == this.state.mode && !force) {
             return;
         }
+        logger.log(`[RadioController] Setting mode: ${this.state.mode} -> ${mode}${force ? " (forced)" : ""}`);
         this.state.mode = mode;
         this.state.pairing = false;
         this.state.connected = false;
@@ -166,6 +171,7 @@ export class RadioController {
         if(this.state.preset == idx) {
             return;
         }
+        logger.log(`[RadioController] Setting preset: ${this.state.preset} -> ${idx}`);
         this.state.preset = idx;
         this.state.nowPlaying = {};
         this.outputPort.setPresetState(idx);
@@ -175,6 +181,7 @@ export class RadioController {
     }
 
     private async onSetVolume(vol: number): Promise<void> {
+        logger.log(`[RadioController] Setting volume: ${this.state.volume} -> ${clamp(0, 100, vol)}`);
         this.state.volume = clamp(0, 100, vol);
         if(this.state.muted) {
             this.state.muted = false;
@@ -187,6 +194,7 @@ export class RadioController {
         if(this.state.muted == muted) {
             return;
         }
+        logger.log(`[RadioController] Setting mute: ${muted}`);
         this.state.muted = muted;
         this.refreshDisplay();
         await this.audioPort.setVolume(this.state.muted ? 0 : this.state.volume);
@@ -196,6 +204,7 @@ export class RadioController {
         if(this.state.mode != "bluetooth") {
             return;
         }
+        logger.log("[RadioController] Enabling Bluetooth pairing");
         this.state.pairing = true;
         this.outputPort.setPairingState(true);
         this.refreshDisplay();

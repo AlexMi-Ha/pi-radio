@@ -60,6 +60,7 @@ function createDisplayAdapter(useHardware: boolean): DisplayPort {
 // Adapters
 // -----------
 const useHardware = process.env.PI_RADIO_USE_HARDWARE === "true";
+logger.log(`[Startup] Using ${useHardware ? "hardware" : "mock"} input/display adapters (PI_RADIO_USE_HARDWARE=${process.env.PI_RADIO_USE_HARDWARE ?? "unset"})`);
 
 const inputAdapter = createInputAdapter(useHardware);
 const outputAdapter = new MockOutputAdapter();
@@ -79,6 +80,9 @@ const apiAdapter = new ApiAdapter(presetAdapter, 4200);
 // Core
 // ----------
 const savedSettings = settingsAdapter.load();
+logger.log(savedSettings
+  ? `[Startup] Restored settings: mode=${savedSettings.mode}, volume=${savedSettings.volume}, preset=${savedSettings.preset}`
+  : "[Startup] No saved settings found, using defaults");
 
 const initialState: State = {
   power: "idle",

@@ -1,5 +1,6 @@
 import i2c, { I2CBus } from "i2c-bus";
 import { DisplayPort } from "../../core/ports/DisplayPort";
+import { logger } from "../../core/util/Logger";
 
 // PCF8574 I2C LCD backpack bit layout (the ubiquitous "LiquidCrystal_I2C"
 // wiring): P0=RS, P1=RW (unused, always 0), P2=EN, P3=backlight, P4-P7=data
@@ -49,6 +50,11 @@ export class I2cLcdDisplayPort implements DisplayPort {
     private blinkOn = true;
     private transientTimer: NodeJS.Timeout | undefined = undefined;
 
+    // Tracks whether the last I2C write failed, so repeated failures (e.g. a loose
+    // connector causing every single char write to fail) log once instead of flooding
+    // the log - only the fail->ok and ok->fail transitions are logged.
+    private i2cErrored = false;
+
     constructor(options: I2cLcdDisplayPortOptions = {}) {
         this.address = options.address ?? 0x27;
         this.scrollIntervalMs = options.scrollIntervalMs ?? 400;
@@ -59,7 +65,21 @@ export class I2cLcdDisplayPort implements DisplayPort {
 
     private writeByte(data: number): void {
         const buf = Buffer.from([data | BACKLIGHT_BIT]);
-        this.bus.i2cWriteSync(this.address, buf.length, buf);
+        try {
+            this.bus.i2cWriteSync(this.address, buf.length, buf);
+            if (this.i2cErrored) {
+                this.i2cErrored = false;
+                logger.log("[LCD] I2C write recovered");
+            }
+        } catch (err) {
+            // Swallow: a flaky display connection must not take down the whole radio
+            // process. Only log the first failure of a run, to avoid flooding the log
+            // since this is called on every character write.
+            if (!this.i2cErrored) {
+                this.i2cErrored = true;
+                logger.error("[LCD] I2C write failed, display output may be stuck:", err);
+            }
+        }
     }
 
     private pulseEnable(data: number): void {
@@ -213,6 +233,10 @@ export class I2cLcdDisplayPort implements DisplayPort {
             clearTimeout(this.transientTimer);
             this.transientTimer = undefined;
         }
-        this.bus.closeSync();
+        try {
+            this.bus.closeSync();
+        } catch (err) {
+            logger.error("[LCD] Failed to close I2C bus:", err);
+        }
     }
 }
