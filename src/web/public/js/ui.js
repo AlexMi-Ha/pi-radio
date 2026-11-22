@@ -30,7 +30,7 @@ const el = {
 };
 
 let currentState = null;
-let presetValues = new Array(NUM_PRESETS).fill('');
+let presetValues = emptyPresets();
 let draggingVolume = false;
 let editorOpen = false;
 
@@ -77,8 +77,8 @@ function wireEvents() {
 async function togglePower() {
     const next = currentState?.power === 'power' ? 'idle' : 'power';
     try {
-        const state = await api.setPower(next);
-        render(state);
+        api.setPower(next).catch(showError);
+        setTimeout(async () => await refreshState(), 100)
     } catch (err) {
         showError(err);
     }
@@ -94,7 +94,7 @@ async function changeMode(mode) {
 }
 
 async function selectPreset(idx) {
-    if (!presetValues[idx]) {
+    if (!presetValues[idx]?.value) {
         showError(new Error(`Station ${idx + 1} has no URL set yet - edit it below first`));
         if (!editorOpen) {
             el.editPresetsToggle.click();
@@ -109,15 +109,20 @@ async function selectPreset(idx) {
     }
 }
 
-async function savePreset(idx, value, button) {
+async function savePreset(idx, value, name, button) {
     try {
-        await api.setPresetForMode('internet_radio', idx, value);
-        presetValues[idx] = value;
+        const preset = await api.setPresetForMode('internet_radio', idx, value, name);
+        presetValues[idx] = preset;
         renderPresetGrid();
+        renderNowPlaying(currentState);
         flashSaved(button);
     } catch (err) {
         showError(err);
     }
+}
+
+function emptyPresets() {
+    return Array.from({ length: NUM_PRESETS }, () => ({ name: '', value: '' }));
 }
 
 function flashSaved(button) {
@@ -142,7 +147,7 @@ async function refreshState() {
 async function refreshPresets() {
     try {
         const presets = await api.getAllPresets();
-        presetValues = presets.internet_radio ?? new Array(NUM_PRESETS).fill('');
+        presetValues = presets.internet_radio ?? emptyPresets();
         renderPresetGrid();
         renderPresetEditorValues();
     } catch (err) {
@@ -218,10 +223,10 @@ function buildPresetGrid() {
 function renderPresetGrid() {
     const buttons = el.presetGrid.querySelectorAll('.preset-btn');
     buttons.forEach((btn, i) => {
-        const value = presetValues[i];
-        btn.classList.toggle('empty', !value);
+        const preset = presetValues[i];
+        btn.classList.toggle('empty', !preset?.value);
         btn.classList.toggle('active', currentState?.mode === 'internet_radio' && currentState?.preset === i);
-        btn.querySelector('.preset-btn__label').textContent = value ? hostnameOf(value) : 'Empty';
+        btn.querySelector('.preset-btn__label').textContent = preset?.value ? (preset.name || hostnameOf(preset.value)) : 'Empty';
     });
 }
 
@@ -235,36 +240,47 @@ function buildPresetEditor() {
         index.className = 'preset-editor__index';
         index.textContent = String(i + 1);
 
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.placeholder = 'Stream URL';
-        input.dataset.index = String(i);
+        const nameInput = document.createElement('input');
+        nameInput.type = 'text';
+        nameInput.placeholder = 'Station name';
+        nameInput.className = 'preset-editor__name';
+        nameInput.dataset.index = String(i);
+        nameInput.dataset.field = 'name';
+
+        const urlInput = document.createElement('input');
+        urlInput.type = 'text';
+        urlInput.placeholder = 'Stream URL';
+        urlInput.dataset.index = String(i);
+        urlInput.dataset.field = 'value';
 
         const save = document.createElement('button');
         save.className = 'btn';
         save.textContent = 'Save';
-        save.addEventListener('click', () => savePreset(i, input.value.trim(), save));
-        input.addEventListener('keydown', (e) => {
+        save.addEventListener('click', () => savePreset(i, urlInput.value.trim(), nameInput.value.trim(), save));
+        const saveOnEnter = (e) => {
             if (e.key === 'Enter') save.click();
-        });
+        };
+        nameInput.addEventListener('keydown', saveOnEnter);
+        urlInput.addEventListener('keydown', saveOnEnter);
 
-        row.append(index, input, save);
+        row.append(index, nameInput, urlInput, save);
         el.presetEditor.appendChild(row);
     }
 }
 
 function renderPresetEditorValues() {
-    const inputs = el.presetEditor.querySelectorAll('input');
-    inputs.forEach((input, i) => {
-        input.value = presetValues[i] ?? '';
+    const rows = el.presetEditor.querySelectorAll('.preset-editor__row');
+    rows.forEach((row, i) => {
+        row.querySelector('[data-field="name"]').value = presetValues[i]?.name ?? '';
+        row.querySelector('[data-field="value"]').value = presetValues[i]?.value ?? '';
     });
 }
 
-function stationLabel(preset, value) {
-    if (!value) {
+function stationLabel(preset, presetValue) {
+    if (!presetValue?.value) {
         return `Station ${preset + 1} (empty)`;
     }
-    return hostnameOf(value);
+    return presetValue.name || hostnameOf(presetValue.value);
 }
 
 function hostnameOf(url) {

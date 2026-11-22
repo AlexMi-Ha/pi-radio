@@ -183,7 +183,9 @@ export class RadioController {
 
     private refreshDisplay() {
         if(this.state.mode == "internet_radio") {
-            const station = this.presetPort.getValueByPreset("internet_radio", this.state.preset) || "No station set";
+            const name = this.presetPort.getNameByPreset("internet_radio", this.state.preset);
+            const value = this.presetPort.getValueByPreset("internet_radio", this.state.preset);
+            const station = name || value || "No station set";
             this.displayPort.showLines(station, this.state.nowPlaying.title);
         }else {
             // No real BlueZ connection-state tracking yet (BluetoothAudioProvider is a

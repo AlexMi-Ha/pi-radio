@@ -3,7 +3,7 @@ import http from "http";
 import path from "path";
 import { Power, PresetMode ,Mode, State, isPresetMode, _presetModes } from "../../core/models/State";
 import { ApiPort } from "../../core/ports/ApiPort";
-import { PresetPort } from "../../core/ports/PresetPort";
+import { Preset, PresetPort } from "../../core/ports/PresetPort";
 
 export class ApiAdapter implements ApiPort {
 
@@ -115,7 +115,7 @@ export class ApiAdapter implements ApiPort {
         });
 
         this.app.get('/api/preset', (req, res) => {
-            const presets: Record<string, string[]> = {};
+            const presets: Record<string, Preset[]> = {};
             for(const presetMode of _presetModes) {
                 presets[presetMode] = this.presetPort.getAllPresets(presetMode);
             }
@@ -151,7 +151,7 @@ export class ApiAdapter implements ApiPort {
 
         this.app.post('/api/preset/:mode/:presetId', (req, res) => {
             const mode = req.params.mode;
-            const {value} = req.body;
+            const {value, name} = req.body;
             if(!isPresetMode(mode)) {
                 res.statusCode = 400;
                 res.send("Unknown radio mode for presets");
@@ -165,8 +165,13 @@ export class ApiAdapter implements ApiPort {
                 return;
             }
 
-            this.presetPort.setValueForPreset(mode, presetId, value);
-            res.json(this.getPresetsOfMode(mode));
+            if(value !== undefined) {
+                this.presetPort.setValueForPreset(mode, presetId, value);
+            }
+            if(name !== undefined) {
+                this.presetPort.setNameForPreset(mode, presetId, name);
+            }
+            res.json(this.getPresetsOfMode(mode)[presetId]);
         });
     }
 
@@ -180,7 +185,7 @@ export class ApiAdapter implements ApiPort {
         this.server?.close();
     }
 
-    private getPresetsOfMode(mode: PresetMode): string[] {
+    private getPresetsOfMode(mode: PresetMode): Preset[] {
         return this.presetPort.getAllPresets(mode);
     }
 

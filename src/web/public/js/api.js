@@ -24,8 +24,8 @@ class Api {
     async getPresetForMode(mode, idx) {
         return await this.get('/preset/'+mode+'/'+idx);
     }
-    async setPresetForMode(mode, idx, value) {
-        return await this.post('/preset/'+mode+'/'+idx, {'value': value});
+    async setPresetForMode(mode, idx, value, name) {
+        return await this.post('/preset/'+mode+'/'+idx, {'value': value, 'name': name});
     }
 
     async get(path) {

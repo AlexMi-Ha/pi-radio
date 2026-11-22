@@ -271,6 +271,10 @@ body {
     min-width: 0;
 }
 
+.preset-editor__row input.preset-editor__name {
+    flex: 0.6;
+}
+
 .preset-editor__row input:focus {
     outline: none;
     border-color: var(--accent);

@@ -48,7 +48,14 @@ export class AudioAdapter implements AudioPort {
             throw new Error('[Audio] No audio provider found for ' + nextMode);
         }
         if(this.currentProvider) {
-            await this.currentProvider.stop();
+            try {
+                await this.currentProvider.stop();
+            } catch(err) {
+                // A failed cleanup of the old provider must not block starting the new
+                // one - otherwise a stuck/erroring provider (e.g. Bluetooth with no
+                // adapter available) permanently prevents switching to any other mode.
+                console.error('[Audio] Failed to stop previous provider:', err);
+            }
         }
         this.currentProvider = nextProvider;
         this.currentProvider.onNowPlayingChanged?.((info) => this.nowPlayingCallback?.(info));
