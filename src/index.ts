@@ -9,20 +9,75 @@ import { MockInputAdapter } from "./adapters/input/MockInputAdapter";
 import { MockOutputAdapter } from "./adapters/output/MockOutputAdapter";
 import { PersistentPresetAdapter } from "./adapters/preset/PersistentPresetAdapter";
 import { PersistentSettingsAdapter } from "./adapters/settings/PersistentSettingsAdapter";
+import { DisplayPort } from "./core/ports/DisplayPort";
+import { InputPort } from "./core/ports/InputPort";
 import { State } from "./core/models/State";
 import { RadioController } from "./core/services/RadioController";
 import { configureFileLogging, logger } from "./core/util/Logger";
 
+function envInt(name: string, fallback: number, radix = 10): number {
+  const raw = process.env[name];
+  return raw !== undefined ? parseInt(raw, radix) : fallback;
+}
+
+function envIntOptional(name: string): number | undefined {
+  const raw = process.env[name];
+  return raw !== undefined ? parseInt(raw, 10) : undefined;
+}
+
 configureFileLogging(
   process.env.PI_RADIO_LOG_TO_FILE === "true",
   process.env.PI_RADIO_LOG_FILE_PATH ?? "logs/pi-radio.log",
-  process.env.PI_RADIO_LOG_MAX_FILE_SIZE_BYTES
-    ? parseInt(process.env.PI_RADIO_LOG_MAX_FILE_SIZE_BYTES, 10)
-    : undefined,
-  process.env.PI_RADIO_LOG_MAX_FILES ? parseInt(process.env.PI_RADIO_LOG_MAX_FILES, 10) : undefined
+  envIntOptional("PI_RADIO_LOG_MAX_FILE_SIZE_BYTES"),
+  envIntOptional("PI_RADIO_LOG_MAX_FILES")
 );
 
+function createInputAdapter(useHardware: boolean): InputPort & { start(): void } {
+  if (!useHardware) {
+    return new MockInputAdapter();
+  }
+  return new GpioInputAdapter({
+    powerButtonPin: envInt("PI_RADIO_GPIO_POWER_BTN", 17),
+    modeButtonPin: envInt("PI_RADIO_GPIO_MODE_BTN", 27),
+    actionButtonPin: envInt("PI_RADIO_GPIO_ACTION_BTN", 22),
+    encoderAPin: envInt("PI_RADIO_GPIO_ENCODER_A", 23),
+    encoderBPin: envInt("PI_RADIO_GPIO_ENCODER_B", 24),
+    encoderButtonPin: envInt("PI_RADIO_GPIO_ENCODER_BTN", 25),
+  });
+}
+
+function createDisplayAdapter(useHardware: boolean): DisplayPort {
+  if (!useHardware) {
+    return new MockDisplayPort();
+  }
+  return new I2cLcdDisplayPort({
+    busNumber: envInt("PI_RADIO_I2C_BUS", 1),
+    address: envInt("PI_RADIO_I2C_LCD_ADDRESS", 0x27, 16),
+  });
+}
+
+// -----------
+// Adapters
+// -----------
+const useHardware = process.env.PI_RADIO_USE_HARDWARE === "true";
+
+const inputAdapter = createInputAdapter(useHardware);
+const outputAdapter = new MockOutputAdapter();
+const displayAdapter = createDisplayAdapter(useHardware);
+
 const settingsAdapter = new PersistentSettingsAdapter(process.env.PI_RADIO_SETTINGS_PATH);
+const presetAdapter = new PersistentPresetAdapter(process.env.PI_RADIO_PRESETS_PATH);
+
+const audioAdapter = new AudioAdapter([
+  new InternetRadioAudioProvider(presetAdapter),
+  new BluetoothAudioProvider(),
+]);
+
+const apiAdapter = new ApiAdapter(presetAdapter, 4200);
+
+// ----------
+// Core
+// ----------
 const savedSettings = settingsAdapter.load();
 
 const initialState: State = {
@@ -36,62 +91,23 @@ const initialState: State = {
   nowPlaying: {},
 };
 
-// -----------
-// Adapters
-// -----------
-const useHardware = process.env.PI_RADIO_USE_HARDWARE === "true";
-
-const inputAdapter = useHardware
-  ? new GpioInputAdapter({
-      powerButtonPin: parseInt(process.env.PI_RADIO_GPIO_POWER_BTN ?? "17", 10),
-      modeButtonPin: parseInt(process.env.PI_RADIO_GPIO_MODE_BTN ?? "27", 10),
-      actionButtonPin: parseInt(process.env.PI_RADIO_GPIO_ACTION_BTN ?? "22", 10),
-      encoderAPin: parseInt(process.env.PI_RADIO_GPIO_ENCODER_A ?? "23", 10),
-      encoderBPin: parseInt(process.env.PI_RADIO_GPIO_ENCODER_B ?? "24", 10),
-      encoderButtonPin: parseInt(process.env.PI_RADIO_GPIO_ENCODER_BTN ?? "25", 10),
-    })
-  : new MockInputAdapter();
-
-const outputAdapter = new MockOutputAdapter();
-
-const displayAdapter = useHardware
-  ? new I2cLcdDisplayPort({
-      busNumber: parseInt(process.env.PI_RADIO_I2C_BUS ?? "1", 10),
-      address: parseInt(process.env.PI_RADIO_I2C_LCD_ADDRESS ?? "0x27", 16),
-    })
-  : new MockDisplayPort();
-
-const presetAdapter = new PersistentPresetAdapter(process.env.PI_RADIO_PRESETS_PATH);
-
-const audioAdapter = new AudioAdapter([
-  new InternetRadioAudioProvider(presetAdapter),
-  new BluetoothAudioProvider()
-]);
-
-const apiAdapter = new ApiAdapter(presetAdapter, 4200);
-
-// ----------
-// Core
-// ----------
-
 const controller = new RadioController({
-    inputPort: inputAdapter,
-    outputPort: outputAdapter,
-    displayPort: displayAdapter,
-    audioPort: audioAdapter,
-    apiPort: apiAdapter,
-    presetPort: presetAdapter,
-    settingsPort: settingsAdapter,
-    state: initialState
+  inputPort: inputAdapter,
+  outputPort: outputAdapter,
+  displayPort: displayAdapter,
+  audioPort: audioAdapter,
+  apiPort: apiAdapter,
+  presetPort: presetAdapter,
+  settingsPort: settingsAdapter,
+  state: initialState,
 });
 
 // -----------
 // Initialize
 // -----------
-
 controller.init();
 
 inputAdapter.start();
 apiAdapter.start();
 
-logger.log("Smart Kitchen Radio DEV environment running...")
+logger.log("Smart Kitchen Radio DEV environment running...");
