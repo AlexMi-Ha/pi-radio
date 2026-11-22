@@ -61,7 +61,8 @@ describe('RadioController', () => {
         presetPort = {
             onPresetsUpdated: jest.fn(),
             getNumPresets: jest.fn().mockReturnValue(5),
-            getValueByPreset: jest.fn().mockReturnValue('http://example.com/station')
+            getValueByPreset: jest.fn().mockReturnValue('http://example.com/station'),
+            getNameByPreset: jest.fn().mockReturnValue('')
         };
 
         state = {

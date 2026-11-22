@@ -32,9 +32,16 @@ describe('ApiAdapter', () => {
 
     beforeEach((done) => {
         presetPort = {
-            getAllPresets: jest.fn().mockReturnValue(['a', 'b', 'c', 'd', 'e']),
+            getAllPresets: jest.fn().mockReturnValue([
+                { name: 'A', value: 'a' },
+                { name: 'B', value: 'b' },
+                { name: '', value: 'c' },
+                { name: '', value: 'd' },
+                { name: '', value: 'e' }
+            ]),
             getNumPresets: jest.fn().mockReturnValue(5),
-            setValueForPreset: jest.fn()
+            setValueForPreset: jest.fn(),
+            setNameForPreset: jest.fn()
         };
         adapter = new ApiAdapter(presetPort, port);
         adapter.start();
@@ -50,15 +57,31 @@ describe('ApiAdapter', () => {
         const res = await request(port, 'GET', '/api/preset');
 
         expect(res.status).toBe(200);
-        expect(res.body).toEqual({ internet_radio: ['a', 'b', 'c', 'd', 'e'] });
+        expect(res.body).toEqual({ internet_radio: [
+            { name: 'A', value: 'a' },
+            { name: 'B', value: 'b' },
+            { name: '', value: 'c' },
+            { name: '', value: 'd' },
+            { name: '', value: 'e' }
+        ] });
     });
 
-    test('POST /api/preset/:mode/:presetId sends a response and updates the preset', async () => {
+    test('POST /api/preset/:mode/:presetId sends a response and updates the preset value', async () => {
         const res = await request(port, 'POST', '/api/preset/internet_radio/2', { value: 'http://new.example.com' });
 
         expect(res.status).toBe(200);
         expect(presetPort.setValueForPreset).toHaveBeenCalledWith('internet_radio', 2, 'http://new.example.com');
-        expect(res.body).toEqual(['a', 'b', 'c', 'd', 'e']);
+        expect(presetPort.setNameForPreset).not.toHaveBeenCalled();
+        expect(res.body).toEqual({ name: '', value: 'c' });
+    });
+
+    test('POST /api/preset/:mode/:presetId updates the preset name', async () => {
+        const res = await request(port, 'POST', '/api/preset/internet_radio/0', { name: 'Kitchen FM' });
+
+        expect(res.status).toBe(200);
+        expect(presetPort.setNameForPreset).toHaveBeenCalledWith('internet_radio', 0, 'Kitchen FM');
+        expect(presetPort.setValueForPreset).not.toHaveBeenCalled();
+        expect(res.body).toEqual({ name: 'A', value: 'a' });
     });
 
     test('POST /api/preset/:mode/:presetId rejects an out-of-range id', async () => {

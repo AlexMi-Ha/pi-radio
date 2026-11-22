@@ -64,6 +64,19 @@ describe('AudioAdapter', () => {
         expect(providerA.start).toHaveBeenCalledWith(2);
     });
 
+    test('still starts the new provider if stopping the previous one fails', async () => {
+        providerB.stop.mockRejectedValue(new Error('bluetoothctl timed out'));
+        jest.spyOn(console, 'error').mockImplementation(() => {});
+
+        await adapter.playMode('bluetooth', 0);
+        await adapter.playMode('internet_radio', 1);
+
+        expect(providerB.stop).toHaveBeenCalled();
+        expect(providerA.start).toHaveBeenCalledWith(1);
+
+        (console.error as jest.Mock).mockRestore();
+    });
+
     // ------------------------
     // stop
     // ------------------------
