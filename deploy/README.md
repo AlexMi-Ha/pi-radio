@@ -202,6 +202,15 @@ it's a different one). When set, `remote-setup.sh` idempotently:
 Leave `PI_RADIO_AUDIO_HAT` unset if you have no audio HAT - onboard audio is
 left untouched by default.
 
+> `softvol`'s `Master` control doesn't actually exist until something opens
+> the PCM at least once (ALSA creates it lazily on first use) - so if
+> nothing has played yet (e.g. no preset URL configured), `amixer set
+> Master` fails with "Unable to find simple control". `pi-radio.service`'s
+> `ExecStartPre` plays one second of silence through the default device on
+> every boot specifically to prime this control before the app's first
+> `setVolume()` call, so this shouldn't surface in practice - but it's why
+> that line is there if you're wondering.
+
 `config.txt` changes only take effect after a reboot. `./deploy/provision.sh`
 already reboots automatically at the end of every run (see "The read-only
 root filesystem" below), so a normal deploy picks this up with no extra
