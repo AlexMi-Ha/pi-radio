@@ -18,8 +18,9 @@ require_root() {
 boot_dir() {
     # Bookworm and newer mount the FAT32 boot partition at /boot/firmware;
     # older releases use /boot directly. Either way this partition is
-    # separate from the root filesystem and stays writable even when the
-    # root overlay (see enable-readonly below) is active.
+    # separate from the root filesystem, so it physically survives the root
+    # overlay (see enable-readonly below) across reboots - though by default
+    # overlay-fs also force-mounts it read-only (see ensure_boot_writable).
     if [ -d /boot/firmware ]; then
         echo /boot/firmware
     else
@@ -33,22 +34,59 @@ root_is_overlay() {
 
 # Raspberry Pi OS's overlay-fs feature write-protects /boot/firmware itself
 # (via overlayroot, which can't apply its RW copy-up mechanism to a FAT
-# partition, so it just force-mounts it "ro" in fstab) - but
-# PI_RADIO_PRESETS_PATH/PI_RADIO_SETTINGS_PATH/the log directory, and
-# cmd_deploy's own config.txt edits, all depend on it staying writable (see
-# deploy/README.md). Patches fstab back to rw and remounts live so it takes
-# effect immediately, without requiring a reboot first.
+# partition, so it just force-mounts it "ro" in fstab) - but cmd_deploy's
+# own config.txt edits and the app-data image file (see
+# setup_app_data_partition) need it writable by root at deploy time. Patches
+# fstab back to rw and remounts live so it takes effect immediately, without
+# requiring a reboot first. Only root ever writes to this partition directly
+# (the app itself never does - see setup_app_data_partition), so no
+# uid=/umask= override is needed here.
 ensure_boot_writable() {
     local bdir
     bdir="$(boot_dir)"
-    # vfat has no real per-file ownership - without an explicit umask/dmask/
-    # fmask option, the kernel applies its own default of 022, which only
-    # lets the mount's nominal uid (root, since there's no uid= either)
-    # write. The app runs as the unprivileged "pi" user, so swapping ro->rw
-    # alone isn't enough - force umask=000 too so it's actually writable by
-    # whatever user the app runs as.
-    sed -i -E "s#^([^[:space:]]+[[:space:]]+${bdir}[[:space:]]+vfat[[:space:]]+)[^[:space:]]+#\1defaults,rw,umask=000#" /etc/fstab
-    mount -o remount,rw,umask=000 "$bdir" 2>/dev/null || mount -o remount,rw "$bdir" 2>/dev/null || true
+    sed -i -E "s#^([^[:space:]]+[[:space:]]+${bdir}[[:space:]]+vfat[[:space:]]+)[^[:space:]]+#\1defaults,rw#" /etc/fstab
+    mount -o remount,rw "$bdir" 2>/dev/null || true
+}
+
+APP_DATA_MOUNT="/var/lib/pi-radio"
+APP_DATA_IMG_SIZE_MB=64
+
+# Presets/settings/logs need to survive the read-only root overlay, so they
+# can't live under /opt or /var on the root filesystem - but they also
+# shouldn't live directly on the FAT boot partition, since FAT has no real
+# per-file Unix permissions (any mount-wide mask that lets the unprivileged
+# "pi" user write there lets it write to config.txt/cmdline.txt/the kernel
+# too - a compromised app process could then get persistent, pre-boot code
+# execution). Instead, a single ext4 image FILE lives on the boot partition
+# (so it physically survives the overlay) and gets loop-mounted at
+# $APP_DATA_MOUNT, which - being real ext4 - supports normal ownership: only
+# root (via the loop mount) ever touches the boot partition itself, while
+# the app gets a normal pi-owned, 0700 directory with no access to anything
+# else on that partition.
+setup_app_data_partition() {
+    local bdir img
+    bdir="$(boot_dir)"
+    img="$bdir/pi-radio-data.img"
+
+    mkdir -p "$APP_DATA_MOUNT"
+
+    if [ ! -f "$img" ]; then
+        echo "== Creating app data image ($APP_DATA_IMG_SIZE_MB MB) at $img =="
+        dd if=/dev/zero of="$img" bs=1M count="$APP_DATA_IMG_SIZE_MB" status=none
+        mkfs.ext4 -q "$img"
+    fi
+
+    # fsck pass 0 (last field): a loop-mounted image file isn't a real boot
+    # device systemd-fsck@.service expects, and this is non-critical, easily
+    # recreated data, so skip fsck rather than fight that integration.
+    ensure_config_txt_line /etc/fstab "$img $APP_DATA_MOUNT ext4 loop,rw 0 0"
+
+    if ! mountpoint -q "$APP_DATA_MOUNT"; then
+        mount -o loop "$img" "$APP_DATA_MOUNT"
+    fi
+
+    chown "$APP_USER:$APP_USER" "$APP_DATA_MOUNT"
+    chmod 700 "$APP_DATA_MOUNT"
 }
 
 # Idempotently ensures an exact line is present verbatim in a config.txt-style
@@ -166,22 +204,11 @@ cmd_deploy() {
     echo "== Installing npm production dependencies =="
     (cd "$APP_DIR" && sudo -u "$APP_USER" npm ci --omit=dev)
 
-    local bdir
-    bdir="$(boot_dir)"
-    echo "== Setting up persistent preset/settings storage on $bdir =="
-    mkdir -p "$bdir/pi-radio"
-    # The boot partition is vfat, which has no concept of per-file Unix
-    # ownership - chown always fails there with "Operation not permitted",
-    # even as root, since it's an unsupported filesystem operation rather
-    # than a permissions issue. Its default mount options (no uid=/gid=/
-    # umask=) already leave it world-writable, so no chown is needed for
-    # $APP_USER to write presets/settings there.
-    if ! findmnt -n -o FSTYPE --target "$bdir" | grep -qi vfat; then
-        chown "$APP_USER:$APP_USER" "$bdir/pi-radio"
-    fi
+    echo "== Setting up persistent app data storage at $APP_DATA_MOUNT =="
+    setup_app_data_partition
     {
-        echo "PI_RADIO_PRESETS_PATH=$bdir/pi-radio/presets.json"
-        echo "PI_RADIO_SETTINGS_PATH=$bdir/pi-radio/settings.json"
+        echo "PI_RADIO_PRESETS_PATH=$APP_DATA_MOUNT/presets.json"
+        echo "PI_RADIO_SETTINGS_PATH=$APP_DATA_MOUNT/settings.json"
         echo "PI_RADIO_USE_HARDWARE=true"
     } > "$ENV_FILE"
 

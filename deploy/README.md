@@ -145,8 +145,9 @@ the active file reaches `PI_RADIO_LOG_MAX_FILE_SIZE_BYTES`, it's rotated to
 started, so disk usage stays bounded (at most roughly
 `maxFileSizeBytes * (maxFiles + 1)`) instead of growing forever. If the
 read-only overlay (see above) is enabled, point `PI_RADIO_LOG_FILE_PATH` at
-the same writable boot partition used for `PI_RADIO_PRESETS_PATH`, otherwise
-writes will fail once the overlay is active.
+the same persistent app-data mount used for `PI_RADIO_PRESETS_PATH`
+(`/var/lib/pi-radio/...`), otherwise writes will fail once the overlay is
+active.
 
 ### Bluetooth
 
@@ -226,14 +227,27 @@ this step by hand; it's documented here so you understand what
 `provision.sh` is doing and why a plain `ssh`+edit on the Pi won't persist
 (see "Updating the app later" below).
 
-Preset data (the 5 station URLs) is stored on the boot partition
-(`/boot/firmware/pi-radio/presets.json`), which is separate FAT32 storage
-that stays writable even with the overlay active - so presets you edit via
-the web UI keep persisting across reboots, while everything else (the OS,
-the app code) resets to this known-good state on every boot.
+Preset data (the 5 station URLs) is stored at `/var/lib/pi-radio/presets.json`
+(`PI_RADIO_PRESETS_PATH`) - so presets you edit via the web UI keep
+persisting across reboots, while everything else (the OS, the app code)
+resets to this known-good state on every boot.
+
+`/var/lib/pi-radio` isn't on the root filesystem itself (which the overlay
+discards every reboot); it's a small ext4 filesystem loop-mounted from a
+single image file stored on the boot partition
+(`/boot/firmware/pi-radio-data.img`), set up by `remote-setup.sh`'s
+`setup_app_data_partition`. The boot partition is separate FAT32 storage
+that stays writable even with the overlay active, but FAT has no real
+per-file Unix permissions - a mount-wide mask that let the unprivileged `pi`
+user write there would also let it write to `config.txt`/`cmdline.txt`/the
+kernel image, turning a compromised app process into persistent, pre-boot
+code execution. Loop-mounting a real ext4 filesystem from a file on that
+partition avoids that: only root (via the loop mount, at deploy time) ever
+touches the FAT partition directly, while the app gets a normal pi-owned,
+`0700` directory with no access to anything else on it.
 
 The last mode, volume, and preset are persisted the same way
-(`/boot/firmware/pi-radio/settings.json`, `PI_RADIO_SETTINGS_PATH`), written
+(`/var/lib/pi-radio/settings.json`, `PI_RADIO_SETTINGS_PATH`), written
 whenever the radio is put into idle (powered off) - so the radio comes back
 up in the same state you left it in, instead of resetting to the defaults
 on every reboot.
