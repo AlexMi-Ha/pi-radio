@@ -1,13 +1,24 @@
-const DAY_NAMES = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
+const DAY_NAMES_SHORT = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+const LINE_WIDTH = 16;
 
 function pad2(n: number): string {
     return n.toString().padStart(2, "0");
 }
 
+function center(text: string): string {
+    const totalPad = LINE_WIDTH - text.length;
+    const left = Math.floor(totalPad / 2);
+    return " ".repeat(Math.max(left, 0)) + text;
+}
+
+// Day+date is kept to 11 chars ("Do 28.11.26") so it fits well within the
+// 16-char LCD line width, unlike the previous full-day-name/4-digit-year
+// format which overflowed it (e.g. "Donnerstag 28/11/2026"). Both lines are
+// then centered for a tidier idle screen.
 function formatClockLines(date: Date): [string, string] {
     const line1 = `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
-    const line2 = `${DAY_NAMES[date.getDay()]} ${pad2(date.getDate())}/${pad2(date.getMonth() + 1)}/${date.getFullYear()}`;
-    return [line1, line2];
+    const line2 = `${DAY_NAMES_SHORT[date.getDay()]} ${pad2(date.getDate())}.${pad2(date.getMonth() + 1)}.${pad2(date.getFullYear() % 100)}`;
+    return [center(line1), center(line2)];
 }
 
 // Renders a self-correcting, minute-aligned clock through a display

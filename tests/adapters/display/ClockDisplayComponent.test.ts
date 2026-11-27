@@ -25,7 +25,7 @@ describe("ClockDisplayComponent", () => {
         clock.showClock();
 
         expect(clock.isActive).toBe(true);
-        expect(render).toHaveBeenCalledWith("14:05", "Freitag 27/11/2026");
+        expect(render).toHaveBeenCalledWith("     14:05", "  Fr 27.11.26");
     });
 
     test("ticks once per minute, aligned to the minute boundary", () => {
@@ -38,7 +38,7 @@ describe("ClockDisplayComponent", () => {
         expect(render).not.toHaveBeenCalled();
 
         jest.advanceTimersByTime(1);
-        expect(render).toHaveBeenCalledWith("14:06", "Freitag 27/11/2026");
+        expect(render).toHaveBeenCalledWith("     14:06", "  Fr 27.11.26");
     });
 
     test("hideClock() stops ticking and marks it inactive", () => {
@@ -62,10 +62,10 @@ describe("ClockDisplayComponent", () => {
         render.mockClear();
 
         clock.showClock();
-        expect(render).toHaveBeenCalledWith("14:05", "Freitag 27/11/2026");
+        expect(render).toHaveBeenCalledWith("     14:05", "  Fr 27.11.26");
 
         render.mockClear();
         jest.advanceTimersByTime(60000);
-        expect(render).toHaveBeenCalledWith("14:06", "Freitag 27/11/2026");
+        expect(render).toHaveBeenCalledWith("     14:06", "  Fr 27.11.26");
     });
 });

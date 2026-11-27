@@ -4,7 +4,7 @@ const CONTROL_COMMAND = 0x00;
 const CONTROL_DATA = 0x40;
 const LCD_DISPLAY_ON = 0x0c;
 const LCD_DISPLAY_OFF = 0x08;
-const DAY_NAMES = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
+const DAY_NAMES_SHORT = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 
 let i2cWriteSync: jest.Mock;
 let closeSync: jest.Mock;
@@ -134,7 +134,7 @@ describe("AipI2cLcdDisplayPort", () => {
         const calls = rawCalls(i2cWriteSync);
         expect(calls).not.toContainEqual([CONTROL_COMMAND, LCD_DISPLAY_OFF]);
         const text = decodeCharWrites(calls);
-        expect(text).toBe(line("14:05") + line(`${DAY_NAMES[5]} 27/11/2026`));
+        expect(text).toBe(line("     14:05") + line(`  ${DAY_NAMES_SHORT[5]} 27.11.26`));
 
         i2cWriteSync.mockClear();
         display.showLines("Should", "NotRender");
@@ -150,7 +150,7 @@ describe("AipI2cLcdDisplayPort", () => {
         jest.advanceTimersByTime(30000);
 
         const text = decodeCharWrites(rawCalls(i2cWriteSync));
-        expect(text).toBe(line("14:06") + line(`${DAY_NAMES[5]} 27/11/2026`));
+        expect(text).toBe(line("     14:06") + line(`  ${DAY_NAMES_SHORT[5]} 27.11.26`));
     });
 
     test("setPower(true) sends Display ON, stops the clock and re-renders the last persistent content", () => {
