@@ -1,6 +1,7 @@
 import i2c, { I2CBus } from "i2c-bus";
 import { DisplayPort } from "../../core/ports/DisplayPort";
 import { logger } from "../../core/util/Logger";
+import { ClockDisplayComponent } from "./ClockDisplayComponent";
 
 // AiP31068L native-I2C LCD controller (Waveshare LCD1602 I2C Module).
 // Every write is a single I2C transaction [control byte][payload...] - no
@@ -11,7 +12,6 @@ const CONTROL_DATA = 0x40; // Co=0, RS=1
 
 const LCD_CLEAR_DISPLAY = 0x01;
 const LCD_ENTRY_MODE_SET = 0x06;
-const LCD_DISPLAY_OFF = 0x08;
 const LCD_DISPLAY_ON = 0x0c;
 const LCD_FUNCTION_SET_2LINE = 0x28;
 const LCD_SET_DDRAM_ADDR = 0x80;
@@ -56,17 +56,20 @@ export class AipI2cLcdDisplayPort implements DisplayPort {
     // the log - only the fail->ok and ok->fail transitions are logged.
     private i2cErrored = false;
 
-    // Tracks whether the display is currently powered on. Note: unlike the
-    // PCF8574 backpack, this module's backlight is hardwired directly to
-    // VDD/VSS with no software control - this only gates the HD44780
-    // Display ON/OFF command and persistent-content rendering.
-    private poweredOn = true;
+    // This module's backlight is hardwired directly to VDD/VSS with no
+    // software control, so going "idle" shows a clock instead of sending
+    // the HD44780 Display OFF command - that would just leave a blank, lit
+    // screen. ClockDisplayComponent owns the clock's own formatting/timer;
+    // this adapter only decides when to show/hide it and swallows normal
+    // content writes while it's active.
+    private clock: ClockDisplayComponent;
 
     constructor(options: AipI2cLcdDisplayPortOptions = {}) {
         this.address = options.address ?? 0x3e;
         this.scrollIntervalMs = options.scrollIntervalMs ?? 400;
         this.blinkIntervalMs = options.blinkIntervalMs ?? 500;
         this.bus = i2c.openSync(options.busNumber ?? 1);
+        this.clock = new ClockDisplayComponent((line1, line2) => this.renderRaw(line1, line2));
         this.init();
     }
 
@@ -126,9 +129,6 @@ export class AipI2cLcdDisplayPort implements DisplayPort {
     }
 
     private renderLine(row: number, text: string): void {
-        if (!this.poweredOn) {
-            return;
-        }
         this.setCursor(0, row);
         const padded = text.slice(0, LINE_WIDTH).padEnd(LINE_WIDTH, " ");
         this.writeChars(padded);
@@ -191,6 +191,9 @@ export class AipI2cLcdDisplayPort implements DisplayPort {
     }
 
     showLines(line1: string, line2?: string, options?: { blink?: boolean }): void {
+        if (this.clock.isActive) {
+            return;
+        }
         if (this.transientTimer) {
             clearTimeout(this.transientTimer);
             this.transientTimer = undefined;
@@ -206,6 +209,9 @@ export class AipI2cLcdDisplayPort implements DisplayPort {
     }
 
     showTransient(line1: string, line2?: string, durationMs: number = 2000): void {
+        if (this.clock.isActive) {
+            return;
+        }
         this.clearTimers();
         if (this.transientTimer) {
             clearTimeout(this.transientTimer);
@@ -221,11 +227,11 @@ export class AipI2cLcdDisplayPort implements DisplayPort {
     }
 
     setPower(on: boolean): void {
-        if (on === this.poweredOn) {
+        if (on === !this.clock.isActive) {
             return;
         }
         if (on) {
-            this.poweredOn = true;
+            this.clock.hideClock();
             this.command(LCD_DISPLAY_ON);
             this.startPersistentTimers();
             this.renderPersistent();
@@ -236,14 +242,14 @@ export class AipI2cLcdDisplayPort implements DisplayPort {
                 clearTimeout(this.transientTimer);
                 this.transientTimer = undefined;
             }
-            this.poweredOn = false;
-            this.command(LCD_DISPLAY_OFF);
-            logger.log("[LCD] Display powered off");
+            this.clock.showClock();
+            logger.log("[LCD] Entering idle, showing clock");
         }
     }
 
     stop(): void {
         this.clearTimers();
+        this.clock.hideClock();
         if (this.transientTimer) {
             clearTimeout(this.transientTimer);
             this.transientTimer = undefined;

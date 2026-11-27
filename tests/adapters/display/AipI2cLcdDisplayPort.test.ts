@@ -4,6 +4,7 @@ const CONTROL_COMMAND = 0x00;
 const CONTROL_DATA = 0x40;
 const LCD_DISPLAY_ON = 0x0c;
 const LCD_DISPLAY_OFF = 0x08;
+const DAY_NAMES = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
 
 let i2cWriteSync: jest.Mock;
 let closeSync: jest.Mock;
@@ -35,6 +36,10 @@ function rawCalls(mock: jest.Mock): number[][] {
     return mock.mock.calls.map((c: any[]) => Array.from(c[2] as Buffer));
 }
 
+function line(text: string): string {
+    return text.slice(0, 16).padEnd(16, " ");
+}
+
 describe("AipI2cLcdDisplayPort", () => {
     let display: AipI2cLcdDisplayPort;
 
@@ -49,6 +54,10 @@ describe("AipI2cLcdDisplayPort", () => {
     });
 
     afterEach(() => {
+        // Ensures fake timers from a mid-test assertion failure don't leak
+        // into the next test's beforeEach, where the real-time busy-wait in
+        // the constructor's init() would spin forever against a frozen clock.
+        jest.useRealTimers();
         display.stop();
     });
 
@@ -114,21 +123,39 @@ describe("AipI2cLcdDisplayPort", () => {
         expect(closeSync).toHaveBeenCalledTimes(1);
     });
 
-    test("setPower(false) sends Display OFF and stops rendering content", () => {
+    test("setPower(false) shows a clock instead of sending Display OFF, and stops rendering normal content", () => {
+        jest.useFakeTimers().setSystemTime(new Date(2026, 10, 27, 14, 5, 0));
+
         display.showLines("Hello", "World");
         i2cWriteSync.mockClear();
 
         display.setPower(false);
 
         const calls = rawCalls(i2cWriteSync);
-        expect(calls).toContainEqual([CONTROL_COMMAND, LCD_DISPLAY_OFF]);
+        expect(calls).not.toContainEqual([CONTROL_COMMAND, LCD_DISPLAY_OFF]);
+        const text = decodeCharWrites(calls);
+        expect(text).toBe(line("14:05") + line(`${DAY_NAMES[5]} 27/11/2026`));
 
         i2cWriteSync.mockClear();
         display.showLines("Should", "NotRender");
         expect(i2cWriteSync).not.toHaveBeenCalled();
     });
 
-    test("setPower(true) sends Display ON and re-renders the last persistent content", () => {
+    test("the clock ticks once per minute while idle", () => {
+        jest.useFakeTimers().setSystemTime(new Date(2026, 10, 27, 14, 5, 30));
+
+        display.setPower(false);
+        i2cWriteSync.mockClear();
+
+        jest.advanceTimersByTime(30000);
+
+        const text = decodeCharWrites(rawCalls(i2cWriteSync));
+        expect(text).toBe(line("14:06") + line(`${DAY_NAMES[5]} 27/11/2026`));
+    });
+
+    test("setPower(true) sends Display ON, stops the clock and re-renders the last persistent content", () => {
+        jest.useFakeTimers().setSystemTime(new Date(2026, 10, 27, 14, 5, 0));
+
         display.showLines("Hello", "World");
         display.setPower(false);
         i2cWriteSync.mockClear();
@@ -140,6 +167,10 @@ describe("AipI2cLcdDisplayPort", () => {
 
         const text = decodeCharWrites(calls);
         expect(text).toBe("Hello           World           ");
+
+        i2cWriteSync.mockClear();
+        jest.advanceTimersByTime(5 * 60000);
+        expect(i2cWriteSync).not.toHaveBeenCalled();
     });
 
     test("setPower is a no-op when called with the current power state", () => {
