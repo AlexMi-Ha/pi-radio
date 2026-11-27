@@ -96,7 +96,7 @@ above), each with a default placeholder value:
 | `PI_RADIO_GPIO_ENCODER_B` | `24`    | Rotary encoder B (quadrature) GPIO|
 | `PI_RADIO_GPIO_ENCODER_BTN`| `25`   | Rotary encoder push button (mute) GPIO|
 | `PI_RADIO_I2C_BUS`        | `1`     | I2C bus number (`/dev/i2c-1`)     |
-| `PI_RADIO_I2C_LCD_ADDRESS`| `0x27`  | PCF8574 LCD backpack I2C address  |
+| `PI_RADIO_I2C_LCD_ADDRESS`| `0x3e`  | AiP31068L LCD module I2C address  |
 
 Buttons are assumed wired momentary-push-to-GND with the Pi's internal
 pull-up enabled (active-low, no external resistors needed). Before first
@@ -107,9 +107,10 @@ ssh pi@pi-radio.local
 i2cdetect -y 1
 ```
 
-`0x27` and `0x3F` are the two common PCF8574 backpack addresses - if yours
-differs, set `PI_RADIO_I2C_LCD_ADDRESS` in `/etc/default/pi-radio` and
-restart the service (`sudo systemctl restart pi-radio`).
+The display is a Waveshare LCD1602 I2C Module (AiP31068L native-I2C
+controller, not a PCF8574 GPIO-expander backpack), default address `0x3e`.
+If yours differs, set `PI_RADIO_I2C_LCD_ADDRESS` in `/etc/default/pi-radio`
+and restart the service (`sudo systemctl restart pi-radio`).
 
 > Real-hardware behavior (button feel/debounce tuning, encoder direction,
 > LCD contrast/address) has not been verified against physical hardware -

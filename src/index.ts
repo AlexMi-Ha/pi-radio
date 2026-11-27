@@ -2,7 +2,7 @@ import { ApiAdapter } from "./adapters/api/ApiAdapter";
 import { AudioAdapter } from "./adapters/audio/AudioAdapter";
 import { BluetoothAudioProvider } from "./adapters/audio/providers/BluetoothAudioProvider";
 import { InternetRadioAudioProvider } from "./adapters/audio/providers/InternetRadioAudioProvider";
-import { I2cLcdDisplayPort } from "./adapters/display/I2cLcdDisplayPort";
+import { AipI2cLcdDisplayPort } from "./adapters/display/AipI2cLcdDisplayPort";
 import { MockDisplayPort } from "./adapters/display/MockDisplayPort";
 import { GpioInputAdapter } from "./adapters/input/GpioInputAdapter";
 import { MockInputAdapter } from "./adapters/input/MockInputAdapter";
@@ -50,9 +50,9 @@ function createDisplayAdapter(useHardware: boolean): DisplayPort {
   if (!useHardware) {
     return new MockDisplayPort();
   }
-  return new I2cLcdDisplayPort({
+  return new AipI2cLcdDisplayPort({
     busNumber: envInt("PI_RADIO_I2C_BUS", 1),
-    address: envInt("PI_RADIO_I2C_LCD_ADDRESS", 0x27, 16),
+    address: envInt("PI_RADIO_I2C_LCD_ADDRESS", 0x3e, 16),
   });
 }
 
