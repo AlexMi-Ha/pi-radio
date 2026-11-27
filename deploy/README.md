@@ -45,9 +45,10 @@ From your dev machine, in the project root:
 ```
 
 This builds the app locally, copies `dist/`, `package.json` and
-`package-lock.json` to the Pi, and on the Pi: installs Node.js, `mpv`,
-`alsa-utils` and `bluez`, runs `npm ci --omit=dev`, and installs + enables
-the `pi-radio` systemd service (auto-starts on boot, restarts on crash).
+`package-lock.json` to the Pi, and on the Pi: upgrades system packages and
+installs `curl`, `mpv`, `alsa-utils`, `bluez` and `i2c-tools`, runs `npm ci
+--omit=dev`, and installs + enables the `pi-radio` systemd service
+(auto-starts on boot, restarts on crash).
 It then enables the read-only root overlay (see step 4 below) and reboots -
 so every `provision.sh` run, including the first one, always ends with the
 filesystem locked down, protecting the SD card from power-loss corruption.
@@ -157,6 +158,54 @@ a custom name, set `PI_RADIO_BLUETOOTH_NAME` in `deploy/.env` (see above) -
 deploy (this is persisted by `bluetoothd` itself, not the app, so it isn't
 re-applied on every app start - re-run `./deploy/provision.sh` after
 changing it).
+
+### Audio HAT (e.g. RaspiAudio HiFiBerry DAC)
+
+By default, Raspberry Pi OS plays audio through the onboard headphone jack
+(or HDMI), even if a DAC HAT's `dtoverlay` is already active via EEPROM
+auto-ID or an existing `config.txt` line - `aplay -l` will show the HAT as a
+card, but it won't be ALSA's default device, so the app's audio (spawned
+with no `--audio-device` flag) won't reach it. To make a HAT the default,
+set in `deploy/.env`:
+
+```bash
+PI_RADIO_AUDIO_HAT=hifiberry-dac
+```
+
+(the value is the HAT's `dtoverlay` name - `hifiberry-dac` for the RaspiAudio
+HiFiBerry DAC HAT this app was developed against; check your HAT's docs if
+it's a different one). When set, `remote-setup.sh` idempotently:
+
+- Ensures `dtoverlay=<value>` is present in `config.txt`.
+- Flips `dtparam=audio=on` to `dtparam=audio=off` (disabling onboard analog
+  audio).
+- Adds `hdmi_ignore_edid_audio=1` (suppressing HDMI audio specifically,
+  without disabling HDMI video, since that's still useful for debugging).
+- Installs `deploy/asound.conf` as `/etc/asound.conf`, wrapping the HAT in
+  ALSA's `softvol` plugin under a mixer control named `Master`. This is
+  needed because DACs like the HiFiBerry have no hardware volume control
+  (`amixer -c sndrpihifiberry scontrols` returns nothing) but
+  `AudioAdapter.ts` always runs `amixer set Master <vol>%` - `softvol` gives
+  it a `Master` control to act on, and because it sits at the ALSA default
+  level (not inside mpv), the same control also governs Bluetooth (A2DP)
+  output volume through the one rotary encoder.
+
+Leave `PI_RADIO_AUDIO_HAT` unset if you have no audio HAT - onboard audio is
+left untouched by default.
+
+`config.txt` changes only take effect after a reboot. `./deploy/provision.sh`
+already reboots automatically at the end of every run (see "The read-only
+root filesystem" below), so a normal deploy picks this up with no extra
+step. If you instead ran `remote-setup.sh deploy` directly on the Pi, reboot
+it yourself (`sudo reboot`) afterwards.
+
+Verify after reboot:
+
+```bash
+cat /proc/asound/cards   # the HAT should be the only/first card
+amixer scontrols         # should list 'Master'
+speaker-test -c2 -t wav -l1   # no -D flag needed - should play through the HAT
+```
 
 ## 4. The read-only root filesystem
 

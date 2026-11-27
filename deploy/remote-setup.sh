@@ -31,6 +31,52 @@ root_is_overlay() {
     mount | awk '$3 == "/" { print $0 }' | grep -qi overlay
 }
 
+# Idempotently ensures an exact line is present verbatim in a config.txt-style
+# file (appends if missing, no-op if already there) - used instead of a
+# key=value replace since config.txt can legitimately have multiple
+# `dtoverlay=...` lines for unrelated overlays and we must not clobber them.
+ensure_config_txt_line() {
+    local file="$1" line="$2"
+    grep -qFx "$line" "$file" || echo "$line" >> "$file"
+}
+
+# Idempotently sets a `key=value` line, replacing any existing uncommented
+# `key=...` line (there should only ever be one for keys like
+# `dtparam=audio`) rather than duplicating it on re-deploy.
+set_config_txt_kv() {
+    local file="$1" key="$2" value="$3"
+    if grep -qE "^${key}=" "$file"; then
+        sed -i "s|^${key}=.*|${key}=${value}|" "$file"
+    else
+        echo "${key}=${value}" >> "$file"
+    fi
+}
+
+# Gated on PI_RADIO_AUDIO_HAT (set via deploy/.env) - disables onboard/HDMI
+# audio so the HAT's DAC becomes ALSA's only/default card, and installs the
+# softvol mixer config so `amixer set Master` (AudioAdapter.ts) has a
+# control to act on. Sets $AUDIO_HAT_CONFIGURED (0/1) so the caller knows
+# whether config.txt was touched (and therefore needs a reboot).
+configure_audio_hat() {
+    local staging_dir="$1"
+    AUDIO_HAT_CONFIGURED=0
+    local hat="${PI_RADIO_AUDIO_HAT:-}"
+    if [ -z "$hat" ]; then
+        return
+    fi
+
+    local cfg
+    cfg="$(boot_dir)/config.txt"
+    echo "== Configuring audio HAT '$hat' in $cfg =="
+    ensure_config_txt_line "$cfg" "dtoverlay=$hat"
+    set_config_txt_kv "$cfg" "dtparam=audio" "off"
+    set_config_txt_kv "$cfg" "hdmi_ignore_edid_audio" "1"
+    AUDIO_HAT_CONFIGURED=1
+
+    echo "== Installing ALSA softvol mixer config (/etc/asound.conf) =="
+    cp "$staging_dir/asound.conf" /etc/asound.conf
+}
+
 cmd_deploy() {
     require_root
     local staging_dir="${1:?staging directory required}"
@@ -44,7 +90,8 @@ cmd_deploy() {
 
     echo "== Installing system packages =="
     apt-get update
-    apt-get install -y curl mpv alsa-utils bluez
+    apt-get upgrade -y
+    apt-get install -y curl mpv alsa-utils bluez i2c-tools
 
     echo "== Enabling I2C interface (for the LCD display) =="
     if command -v raspi-config >/dev/null 2>&1; then
@@ -101,6 +148,13 @@ cmd_deploy() {
         bluetoothctl system-alias "$bt_name"
     fi
 
+    # PI_RADIO_AUDIO_HAT, if set in deploy/.env, is likewise applied here
+    # rather than left to the app - it gates config.txt/asound.conf changes
+    # that only make sense at deploy time (see configure_audio_hat above).
+    local PI_RADIO_AUDIO_HAT
+    PI_RADIO_AUDIO_HAT="$(grep -E '^PI_RADIO_AUDIO_HAT=' "$ENV_FILE" | tail -n1 | cut -d= -f2-)"
+    configure_audio_hat "$staging_dir"
+
     echo "== Installing systemd service =="
     cp "$staging_dir/pi-radio.service" "/etc/systemd/system/$SERVICE_NAME.service"
     systemctl daemon-reload
@@ -109,6 +163,13 @@ cmd_deploy() {
 
     echo "== Deploy complete =="
     systemctl status "$SERVICE_NAME" --no-pager || true
+
+    if [ "$AUDIO_HAT_CONFIGURED" -eq 1 ]; then
+        echo "== Audio HAT config.txt changes require a reboot to take effect =="
+        echo "(provision.sh reboots automatically via enable-readonly at the end"
+        echo "of a normal deploy; if you ran remote-setup.sh deploy directly, run"
+        echo "'sudo reboot' yourself.)"
+    fi
 }
 
 cmd_enable_readonly() {

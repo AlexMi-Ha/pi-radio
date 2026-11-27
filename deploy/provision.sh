@@ -66,6 +66,7 @@ scp -rq \
     "$PROJECT_ROOT/package-lock.json" \
     "$SCRIPT_DIR/remote-setup.sh" \
     "$SCRIPT_DIR/pi-radio.service" \
+    "$SCRIPT_DIR/asound.conf" \
     "$TARGET:$REMOTE_STAGING/"
 
 if [ -f "$SCRIPT_DIR/.env" ]; then
