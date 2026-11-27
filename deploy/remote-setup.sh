@@ -163,6 +163,18 @@ configure_gpio_pullups() {
     ensure_config_txt_line "$cfg" "gpio=$pins=pu"
 }
 
+# Raspberry Pi OS soft-blocks the onboard Bluetooth radio via rfkill on some
+# images (confirmed via `rfkill list` showing hci0 soft-blocked), which makes
+# bluetoothd's own "power on" fail silently from the app's point of view -
+# BluetoothAudioProvider.start()'s `bluetoothctl power on` exits 1 with
+# bluetoothd logging "Failed to set mode: Failed (0x03)". Unblocking is
+# idempotent (a no-op if already unblocked) and takes effect immediately, no
+# reboot needed.
+unblock_bluetooth_rfkill() {
+    echo "== Unblocking Bluetooth radio (rfkill) =="
+    rfkill unblock bluetooth
+}
+
 cmd_deploy() {
     require_root
     local staging_dir="${1:?staging directory required}"
@@ -221,6 +233,8 @@ cmd_deploy() {
         echo "== Applying custom settings from deploy/.env =="
         cat "$staging_dir/pi-radio.env" >> "$ENV_FILE"
     fi
+
+    unblock_bluetooth_rfkill
 
     # PI_RADIO_BLUETOOTH_NAME, if set in deploy/.env, is applied here rather
     # than left to the app - it's a one-off adapter setting (persisted by

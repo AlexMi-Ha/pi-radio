@@ -153,8 +153,13 @@ active.
 ### Bluetooth
 
 No extra setup is needed beyond the `bluez` package `provision.sh` already
-installs - live pairing/connection status and AVRCP track metadata work by
-talking to `bluetoothd` over the system D-Bus (`org.bluez`), which any user
+installs - `remote-setup.sh` also runs `rfkill unblock bluetooth` on every
+deploy, since some Pi OS images ship with the onboard Bluetooth radio
+soft-blocked, which otherwise makes `bluetoothctl power on` (and so
+switching the app into `bluetooth` mode) fail with `bluetoothd` logging
+"Failed to set mode: Failed (0x03)". Live pairing/connection status and
+AVRCP track metadata work by talking to `bluetoothd` over the system D-Bus
+(`org.bluez`), which any user
 (including the `pi` service account) can read from under BlueZ's default
 D-Bus policy. This has only been developed against the BlueZ D-Bus API
 documentation (`https://github.com/bluez/bluez/tree/master/doc`), not a real

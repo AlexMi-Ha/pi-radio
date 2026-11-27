@@ -183,9 +183,12 @@ export class BluetoothAudioProvider implements AudioProvider {
     // again - the timeout guarantees this always resolves or rejects.
     private run(command: string): Promise<void> {
         return new Promise((resolve, reject) => {
-            exec(command, { timeout: 5000 }, (err) => {
+            exec(command, { timeout: 5000 }, (err, stdout, stderr) => {
                 if(err) {
-                    logger.error("[Bluetooth] Command failed: " + command, err);
+                    logger.error(
+                        `[Bluetooth] Command failed: ${command} stdout=${(stdout ?? "").trim()} stderr=${(stderr ?? "").trim()}`,
+                        err
+                    );
                     reject(err);
                 }else {
                     resolve();
