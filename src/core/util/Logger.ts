@@ -30,7 +30,13 @@ export function configureFileLogging(
         fileLoggingConfig = undefined;
         return;
     }
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    try {
+        fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    } catch (err) {
+        console.error(`[Logger] Failed to set up log directory for ${filePath}, falling back to console-only logging:`, err);
+        fileLoggingConfig = undefined;
+        return;
+    }
     fileLoggingConfig = { filePath, maxFileSizeBytes, maxFiles };
 }
 

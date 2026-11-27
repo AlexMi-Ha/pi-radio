@@ -31,6 +31,26 @@ root_is_overlay() {
     mount | awk '$3 == "/" { print $0 }' | grep -qi overlay
 }
 
+# Raspberry Pi OS's overlay-fs feature write-protects /boot/firmware itself
+# (via overlayroot, which can't apply its RW copy-up mechanism to a FAT
+# partition, so it just force-mounts it "ro" in fstab) - but
+# PI_RADIO_PRESETS_PATH/PI_RADIO_SETTINGS_PATH/the log directory, and
+# cmd_deploy's own config.txt edits, all depend on it staying writable (see
+# deploy/README.md). Patches fstab back to rw and remounts live so it takes
+# effect immediately, without requiring a reboot first.
+ensure_boot_writable() {
+    local bdir
+    bdir="$(boot_dir)"
+    # vfat has no real per-file ownership - without an explicit umask/dmask/
+    # fmask option, the kernel applies its own default of 022, which only
+    # lets the mount's nominal uid (root, since there's no uid= either)
+    # write. The app runs as the unprivileged "pi" user, so swapping ro->rw
+    # alone isn't enough - force umask=000 too so it's actually writable by
+    # whatever user the app runs as.
+    sed -i -E "s#^([^[:space:]]+[[:space:]]+${bdir}[[:space:]]+vfat[[:space:]]+)[^[:space:]]+#\1defaults,rw,umask=000#" /etc/fstab
+    mount -o remount,rw,umask=000 "$bdir" 2>/dev/null || mount -o remount,rw "$bdir" 2>/dev/null || true
+}
+
 # Idempotently ensures an exact line is present verbatim in a config.txt-style
 # file (appends if missing, no-op if already there) - used instead of a
 # key=value replace since config.txt can legitimately have multiple
@@ -115,6 +135,8 @@ cmd_deploy() {
         echo "Run: sudo $0 disable-readonly, reboot, then re-run the deploy." >&2
         exit 1
     fi
+
+    ensure_boot_writable
 
     echo "== Installing system packages =="
     apt-get update
@@ -219,6 +241,10 @@ cmd_enable_readonly() {
         exit 1
     fi
     if raspi-config nonint do_overlayfs 0; then
+        # do_overlayfs also write-protects /boot/firmware - undo that (see
+        # ensure_boot_writable) while the real /etc/fstab is still editable
+        # (the overlay itself only takes effect on the next reboot).
+        ensure_boot_writable
         echo "Enabled. Reboot to activate: sudo reboot"
     else
         echo "Automatic enable failed or 'do_overlayfs' is unsupported on this OS version." >&2
@@ -235,6 +261,11 @@ cmd_disable_readonly() {
         exit 1
     fi
     if raspi-config nonint do_overlayfs 1; then
+        # The /boot/firmware "ro" fstab entry is independent of the root
+        # overlay toggle - disabling the overlay alone doesn't revert it.
+        # cmd_deploy also calls ensure_boot_writable itself (belt-and-
+        # suspenders - it's the one that actually needs this to hold).
+        ensure_boot_writable
         echo "Disabled. Reboot for the root filesystem to be writable again: sudo reboot"
     else
         echo "Automatic disable failed or 'do_overlayfs' is unsupported on this OS version." >&2
