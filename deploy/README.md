@@ -99,9 +99,17 @@ above), each with a default placeholder value:
 | `PI_RADIO_I2C_BUS`        | `1`     | I2C bus number (`/dev/i2c-1`)     |
 | `PI_RADIO_I2C_LCD_ADDRESS`| `0x3e`  | AiP31068L LCD module I2C address  |
 
-Buttons are assumed wired momentary-push-to-GND with the Pi's internal
-pull-up enabled (active-low, no external resistors needed). Before first
-deploying with real hardware, wire the LCD and confirm its I2C address with:
+Buttons, the encoder's push button, and the encoder's A/B quadrature lines
+are all wired momentary/switch-to-GND, active-low, relying on the Pi's
+internal pull-up rather than external resistors. `remote-setup.sh`'s
+`cmd_deploy` enables these automatically on every deploy, adding a
+`gpio=<power>,<mode>,<action>,<encoderA>,<encoderB>,<encoderBtn>=pu` line to
+`config.txt` (picking up any `PI_RADIO_GPIO_*` overrides from `deploy/.env`
+above) - no manual config.txt editing needed. This is a `config.txt` change,
+so it needs a reboot to take effect (same as the audio HAT changes below;
+`provision.sh` reboots automatically at the end of a normal deploy).
+
+Before first deploying with real hardware, wire the LCD and confirm its I2C address with:
 
 ```bash
 ssh pi@pi-radio.local

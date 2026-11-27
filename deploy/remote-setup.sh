@@ -77,6 +77,34 @@ configure_audio_hat() {
     cp "$staging_dir/asound.conf" /etc/asound.conf
 }
 
+# Enables the Pi's internal pull-ups on every GPIO line GpioInputAdapter
+# reads (src/adapters/input/GpioInputAdapter.ts) - power/mode/action buttons,
+# the encoder's push button, and the encoder's A/B quadrature lines. All six
+# are read as "falling"/"both" with activeLow semantics, i.e. the code
+# expects each pin to idle high and be pulled low on press/rotation; `onoff`
+# (sysfs-based) has no pull-up/down option of its own, so an unpowered pin
+# floats and produces spurious or missing edges unless the breakout board
+# supplies its own pull-up. Always run, not gated like configure_audio_hat,
+# since cmd_deploy always sets PI_RADIO_USE_HARDWARE=true below.
+configure_gpio_pullups() {
+    local cfg
+    cfg="$(boot_dir)/config.txt"
+
+    local power mode action enc_a enc_b enc_btn
+    power="$(grep -E '^PI_RADIO_GPIO_POWER_BTN=' "$ENV_FILE" | tail -n1 | cut -d= -f2-)"
+    mode="$(grep -E '^PI_RADIO_GPIO_MODE_BTN=' "$ENV_FILE" | tail -n1 | cut -d= -f2-)"
+    action="$(grep -E '^PI_RADIO_GPIO_ACTION_BTN=' "$ENV_FILE" | tail -n1 | cut -d= -f2-)"
+    enc_a="$(grep -E '^PI_RADIO_GPIO_ENCODER_A=' "$ENV_FILE" | tail -n1 | cut -d= -f2-)"
+    enc_b="$(grep -E '^PI_RADIO_GPIO_ENCODER_B=' "$ENV_FILE" | tail -n1 | cut -d= -f2-)"
+    enc_btn="$(grep -E '^PI_RADIO_GPIO_ENCODER_BTN=' "$ENV_FILE" | tail -n1 | cut -d= -f2-)"
+
+    # Defaults mirror createInputAdapter() in src/index.ts.
+    local pins="${power:-17},${mode:-27},${action:-22},${enc_a:-23},${enc_b:-24},${enc_btn:-25}"
+
+    echo "== Enabling internal pull-ups on GPIO pins $pins in $cfg =="
+    ensure_config_txt_line "$cfg" "gpio=$pins=pu"
+}
+
 cmd_deploy() {
     require_root
     local staging_dir="${1:?staging directory required}"
@@ -155,6 +183,8 @@ cmd_deploy() {
     PI_RADIO_AUDIO_HAT="$(grep -E '^PI_RADIO_AUDIO_HAT=' "$ENV_FILE" | tail -n1 | cut -d= -f2-)"
     configure_audio_hat "$staging_dir"
 
+    configure_gpio_pullups
+
     echo "== Installing systemd service =="
     cp "$staging_dir/pi-radio.service" "/etc/systemd/system/$SERVICE_NAME.service"
     systemctl daemon-reload
@@ -164,12 +194,10 @@ cmd_deploy() {
     echo "== Deploy complete =="
     systemctl status "$SERVICE_NAME" --no-pager || true
 
-    if [ "$AUDIO_HAT_CONFIGURED" -eq 1 ]; then
-        echo "== Audio HAT config.txt changes require a reboot to take effect =="
-        echo "(provision.sh reboots automatically via enable-readonly at the end"
-        echo "of a normal deploy; if you ran remote-setup.sh deploy directly, run"
-        echo "'sudo reboot' yourself.)"
-    fi
+    echo "== config.txt was updated (GPIO pull-ups$( [ "$AUDIO_HAT_CONFIGURED" -eq 1 ] && echo ", audio HAT" ) ) - reboot required to take effect =="
+    echo "(provision.sh reboots automatically via enable-readonly at the end"
+    echo "of a normal deploy; if you ran remote-setup.sh deploy directly, run"
+    echo "'sudo reboot' yourself.)"
 }
 
 cmd_enable_readonly() {
