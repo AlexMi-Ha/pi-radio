@@ -200,7 +200,23 @@ describe('RadioController', () => {
         expect(state.mode).toBe("bluetooth");
         expect(outputPort.setMode).toHaveBeenCalledWith("bluetooth");
         expect(outputPort.idlePresetState).toHaveBeenCalled();
-        expect(audioPort.playMode).toHaveBeenCalledWith("bluetooth", 0);
+        expect(audioPort.playMode).toHaveBeenCalledWith("bluetooth", 1);
+    });
+
+    test('preserves internet_radio preset across a trip through bluetooth', async () => {
+        let modeHandler: any;
+        inputPort.onModeToggle.mockImplementation((cb: any) => modeHandler = cb);
+
+        controller.init();
+
+        await new Promise(resolve => setImmediate(resolve));
+
+        await modeHandler();
+        expect(state.mode).toBe("bluetooth");
+
+        await modeHandler();
+        expect(state.mode).toBe("internet_radio");
+        expect(state.preset).toBe(1);
     });
 
     test('ignores mode toggle via input while idle', async () => {
@@ -650,7 +666,7 @@ describe('RadioController', () => {
         await handler("bluetooth");
 
         expect(state.mode).toBe("bluetooth");
-        expect(audioPort.playMode).toHaveBeenCalledWith("bluetooth", 0);
+        expect(audioPort.playMode).toHaveBeenCalledWith("bluetooth", 1);
     });
 
     test('api setPreset works', async () => {

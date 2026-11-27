@@ -168,7 +168,7 @@ export class RadioController {
         this.state.connected = false;
         this.state.nowPlaying = {};
 
-        if(!isPresetMode(this.state.mode) || this.presetPort.getNumPresets(this.state.mode) <= this.state.preset) {
+        if(isPresetMode(this.state.mode) && this.presetPort.getNumPresets(this.state.mode) <= this.state.preset) {
             this.state.preset = 0;
         }
 
