@@ -27,7 +27,6 @@
     "@homebridge/dbus-native": "^0.7.9",
     "child_process": "^1.0.2",
     "express": "^5.2.1",
-    "i2c-bus": "^5.2.3",
-    "onoff": "^6.0.3"
+    "i2c-bus": "^5.2.3"
   }
 }

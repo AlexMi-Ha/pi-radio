@@ -1,4 +1,5 @@
-import { Gpio } from "onoff";
+import { ChildProcessWithoutNullStreams, spawn } from "child_process";
+import * as readline from "readline";
 import { InputPort } from "../../core/ports/InputPort";
 import { logger } from "../../core/util/Logger";
 
@@ -11,6 +12,7 @@ export interface GpioInputAdapterOptions {
     encoderButtonPin: number;
     buttonDebounceMs?: number;
     volumeStepPerDetent?: number;
+    gpioChip?: string;
 }
 
 // Quadrature decoding: pinState is the 2-bit reading (A<<1|B), which walks
@@ -35,6 +37,15 @@ QUADRATURE_STEP[2 * 4 + 3] = -1;
 QUADRATURE_STEP[3 * 4 + 1] = -1;
 QUADRATURE_STEP[1 * 4 + 0] = -1;
 
+// Talks to GPIO via libgpiod's `gpiomon` CLI tool (spawned as a child
+// process) rather than a native binding or the legacy /sys/class/gpio sysfs
+// interface - sysfs GPIO was removed from mainline Linux in kernel 6.3, and
+// native libgpiod Node bindings available at the time this was written
+// don't support libgpiod 2.x (what current Raspberry Pi OS ships). Shelling
+// out to the CLI tools that ship with whatever libgpiod version is actually
+// installed sidesteps that version-lock entirely - this mirrors
+// BluetoothAudioProvider's `bluetoothctl`-based approach elsewhere in the
+// adapter layer.
 export class GpioInputAdapter implements InputPort {
     private volumeCallback?: (delta: number) => void;
     private volumeMuteCallback?: () => void;
@@ -42,45 +53,39 @@ export class GpioInputAdapter implements InputPort {
     private actionCallback?: () => void;
     private powerCallback?: () => void;
 
+    private readonly chip: string;
+    private readonly buttonDebounceMs: number;
     private readonly volumeStepPerDetent: number;
 
-    private powerBtn: Gpio;
-    private modeBtn: Gpio;
-    private actionBtn: Gpio;
-    private encoderA: Gpio;
-    private encoderB: Gpio;
-    private encoderBtn: Gpio;
+    private readonly powerPin: number;
+    private readonly modePin: number;
+    private readonly actionPin: number;
+    private readonly encoderAPin: number;
+    private readonly encoderBPin: number;
+    private readonly encoderBtnPin: number;
 
-    // Quadrature decoder state (see QUADRATURE_STEP above).
+    private buttonMonitor?: ChildProcessWithoutNullStreams;
+    private encoderMonitor?: ChildProcessWithoutNullStreams;
+
+    // Quadrature decoder state (see QUADRATURE_STEP above). gpiomon reports
+    // edges, not levels, so each pin's current level is tracked
+    // incrementally from the edge type rather than read on demand.
+    private encoderALevel: 0 | 1 = 0;
+    private encoderBLevel: 0 | 1 = 0;
     private lastPinState = 0;
     private accumulator = 0;
 
     constructor(options: GpioInputAdapterOptions) {
-        const debounceTimeout = options.buttonDebounceMs ?? 25;
+        this.chip = options.gpioChip ?? "gpiochip0";
+        this.buttonDebounceMs = options.buttonDebounceMs ?? 25;
         this.volumeStepPerDetent = options.volumeStepPerDetent ?? 1;
 
-        this.powerBtn = new Gpio(options.powerButtonPin, "in", "falling", {
-            debounceTimeout,
-            activeLow: true,
-        });
-        this.modeBtn = new Gpio(options.modeButtonPin, "in", "falling", {
-            debounceTimeout,
-            activeLow: true,
-        });
-        this.actionBtn = new Gpio(options.actionButtonPin, "in", "falling", {
-            debounceTimeout,
-            activeLow: true,
-        });
-        this.encoderBtn = new Gpio(options.encoderButtonPin, "in", "falling", {
-            debounceTimeout,
-            activeLow: true,
-        });
-
-        // No debounce on the encoder pins: contact bounce is instead
-        // rejected by the quadrature FSM, which only counts full,
-        // legal A/B transition sequences.
-        this.encoderA = new Gpio(options.encoderAPin, "in", "both");
-        this.encoderB = new Gpio(options.encoderBPin, "in", "both");
+        this.powerPin = options.powerButtonPin;
+        this.modePin = options.modeButtonPin;
+        this.actionPin = options.actionButtonPin;
+        this.encoderAPin = options.encoderAPin;
+        this.encoderBPin = options.encoderBPin;
+        this.encoderBtnPin = options.encoderButtonPin;
     }
 
     onVolumeChange(callback: (delta: number) => void): void {
@@ -104,56 +109,85 @@ export class GpioInputAdapter implements InputPort {
     }
 
     start(): void {
-        this.powerBtn.watch((err) => {
-            if (err) {
-                logger.error("[GpioInput] power button watch error:", err);
-                return;
-            }
-            this.powerCallback?.();
-        });
+        // Buttons idle physically high (internal pull-ups, enabled via
+        // config.txt - see remote-setup.sh's configure_gpio_pullups) and are
+        // pulled low on press, so a press is a falling edge. gpiomon's own
+        // debounce (not software, unlike the previous onoff-based adapter)
+        // covers contact bounce.
+        this.buttonMonitor = this.spawnMonitor(
+            [this.powerPin, this.modePin, this.actionPin, this.encoderBtnPin],
+            ["--edges", "falling", "--debounce-period", String(this.buttonDebounceMs), "--format", "%o"],
+            (line) => this.handleButtonEvent(line)
+        );
 
-        this.modeBtn.watch((err) => {
-            if (err) {
-                logger.error("[GpioInput] mode button watch error:", err);
-                return;
-            }
-            this.modeToggleCallback?.();
-        });
-
-        this.actionBtn.watch((err) => {
-            if (err) {
-                logger.error("[GpioInput] action button watch error:", err);
-                return;
-            }
-            this.actionCallback?.();
-        });
-
-        this.encoderBtn.watch((err) => {
-            if (err) {
-                logger.error("[GpioInput] encoder button watch error:", err);
-                return;
-            }
-            this.volumeMuteCallback?.();
-        });
-
-        const onEncoderEdge = (err: Error | null | undefined) => {
-            if (err) {
-                logger.error("[GpioInput] encoder watch error:", err);
-                return;
-            }
-            this.handleEncoderEdge();
-        };
-        this.encoderA.watch(onEncoderEdge);
-        this.encoderB.watch(onEncoderEdge);
+        // No debounce on the encoder pins: contact bounce is instead
+        // rejected by the quadrature FSM, which only counts full, legal A/B
+        // transition sequences.
+        this.encoderMonitor = this.spawnMonitor(
+            [this.encoderAPin, this.encoderBPin],
+            ["--edges", "both", "--format", "%o %e"],
+            (line) => this.handleEncoderEvent(line)
+        );
 
         logger.log("[GpioInput] GpioInputAdapter started.");
     }
 
-    private handleEncoderEdge(): void {
-        const a = this.encoderA.readSync();
-        const b = this.encoderB.readSync();
-        const pinState = (a << 1) | b;
+    private spawnMonitor(pins: number[], extraArgs: string[], onLine: (line: string) => void): ChildProcessWithoutNullStreams {
+        const label = `pins ${pins.join(",")}`;
+        const proc = spawn("gpiomon", ["--chip", this.chip, ...extraArgs, ...pins.map(String)]);
 
+        readline.createInterface({ input: proc.stdout }).on("line", onLine);
+
+        proc.stderr.on("data", (data: Buffer) => {
+            logger.error(`[GpioInput] gpiomon (${label}) error:`, data.toString().trim());
+        });
+        proc.on("error", (err) => {
+            logger.error(`[GpioInput] failed to start gpiomon (${label}):`, err);
+        });
+        proc.on("exit", (code, signal) => {
+            if (signal === "SIGTERM" || signal === "SIGKILL") return; // expected from stop()
+            logger.error(`[GpioInput] gpiomon (${label}) exited unexpectedly: code=${code} signal=${signal}`);
+        });
+
+        return proc;
+    }
+
+    private handleButtonEvent(line: string): void {
+        const offset = parseInt(line.trim(), 10);
+        if (Number.isNaN(offset)) return;
+
+        switch (offset) {
+            case this.powerPin:
+                this.powerCallback?.();
+                break;
+            case this.modePin:
+                this.modeToggleCallback?.();
+                break;
+            case this.actionPin:
+                this.actionCallback?.();
+                break;
+            case this.encoderBtnPin:
+                this.volumeMuteCallback?.();
+                break;
+        }
+    }
+
+    private handleEncoderEvent(line: string): void {
+        const parts = line.trim().split(/\s+/);
+        const offset = parseInt(parts[0] ?? "", 10);
+        const edgeStr = parts[1];
+        if (Number.isNaN(offset) || edgeStr === undefined) return;
+
+        const level: 0 | 1 = edgeStr === "1" ? 1 : 0; // 1 = rising, 2 = falling
+        if (offset === this.encoderAPin) {
+            this.encoderALevel = level;
+        } else if (offset === this.encoderBPin) {
+            this.encoderBLevel = level;
+        } else {
+            return;
+        }
+
+        const pinState = (this.encoderALevel << 1) | this.encoderBLevel;
         this.accumulator += QUADRATURE_STEP[this.lastPinState * 4 + pinState] ?? 0;
         this.lastPinState = pinState;
 
@@ -167,18 +201,7 @@ export class GpioInputAdapter implements InputPort {
     }
 
     stop(): void {
-        this.powerBtn.unwatchAll();
-        this.modeBtn.unwatchAll();
-        this.actionBtn.unwatchAll();
-        this.encoderA.unwatchAll();
-        this.encoderB.unwatchAll();
-        this.encoderBtn.unwatchAll();
-
-        this.powerBtn.unexport();
-        this.modeBtn.unexport();
-        this.actionBtn.unexport();
-        this.encoderA.unexport();
-        this.encoderB.unexport();
-        this.encoderBtn.unexport();
+        this.buttonMonitor?.kill();
+        this.encoderMonitor?.kill();
     }
 }

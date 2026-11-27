@@ -1,52 +1,39 @@
+import { EventEmitter } from "events";
+import { Readable } from "stream";
 import { GpioInputAdapter } from "../../../src/adapters/input/GpioInputAdapter";
 
-type MockGpioInstance = {
-    pin: number;
-    direction: string;
-    edge?: string;
-    options?: any;
-    watch: jest.Mock;
-    unwatch: jest.Mock;
-    unwatchAll: jest.Mock;
-    unexport: jest.Mock;
-    readSync: jest.Mock;
-    _value: 0 | 1;
+type MockProc = EventEmitter & {
+    stdout: Readable;
+    stderr: EventEmitter;
+    kill: jest.Mock;
+    args: string[];
 };
 
-const instances: MockGpioInstance[] = [];
+const spawnedProcs: MockProc[] = [];
 
-jest.mock("onoff", () => {
-    return {
-        Gpio: jest.fn().mockImplementation((pin: number, direction: string, edge?: string, options?: any) => {
-            const instance: MockGpioInstance = {
-                pin,
-                direction,
-                edge,
-                options,
-                watch: jest.fn(),
-                unwatch: jest.fn(),
-                unwatchAll: jest.fn(),
-                unexport: jest.fn(),
-                readSync: jest.fn(() => instance._value),
-                _value: 0,
-            };
-            instances.push(instance);
-            return instance;
-        }),
-    };
-});
+jest.mock("child_process", () => ({
+    spawn: jest.fn((_cmd: string, args: string[]) => {
+        const proc = new EventEmitter() as MockProc;
+        proc.stdout = new Readable({ read() {} });
+        proc.stderr = new EventEmitter();
+        proc.kill = jest.fn();
+        proc.args = args;
+        spawnedProcs.push(proc);
+        return proc;
+    }),
+}));
+
+function emitLine(proc: MockProc, line: string): void {
+    proc.stdout.push(`${line}\n`);
+}
 
 describe("GpioInputAdapter", () => {
     let adapter: GpioInputAdapter;
-    let powerBtn: MockGpioInstance;
-    let modeBtn: MockGpioInstance;
-    let actionBtn: MockGpioInstance;
-    let encoderA: MockGpioInstance;
-    let encoderB: MockGpioInstance;
-    let encoderBtn: MockGpioInstance;
+    let buttonProc: MockProc;
+    let encoderProc: MockProc;
 
     beforeEach(() => {
-        instances.length = 0;
+        spawnedProcs.length = 0;
         adapter = new GpioInputAdapter({
             powerButtonPin: 17,
             modeButtonPin: 27,
@@ -55,139 +42,130 @@ describe("GpioInputAdapter", () => {
             encoderBPin: 24,
             encoderButtonPin: 25,
         });
-
-        [powerBtn, modeBtn, actionBtn, encoderBtn, encoderA, encoderB] = instances;
         adapter.start();
+
+        [buttonProc, encoderProc] = spawnedProcs;
     });
 
-    test("constructs buttons as active-low falling-edge inputs with debounce", () => {
-        expect(powerBtn.pin).toBe(17);
-        expect(powerBtn.edge).toBe("falling");
-        expect(powerBtn.options).toMatchObject({ activeLow: true, debounceTimeout: 25 });
-
-        expect(modeBtn.pin).toBe(27);
-        expect(actionBtn.pin).toBe(22);
+    test("spawns gpiomon for the buttons with falling-edge detection and debounce", () => {
+        expect(buttonProc.args).toEqual(
+            expect.arrayContaining(["--edges", "falling", "--debounce-period", "25", "17", "27", "22", "25"])
+        );
     });
 
-    test("constructs encoder pins with both-edge detection and no debounce option", () => {
-        expect(encoderA.pin).toBe(23);
-        expect(encoderA.edge).toBe("both");
-        expect(encoderA.options).toBeUndefined();
-        expect(encoderB.pin).toBe(24);
+    test("spawns gpiomon for the encoder pins with both-edge detection and no debounce", () => {
+        expect(encoderProc.args).toEqual(expect.arrayContaining(["--edges", "both", "23", "24"]));
+        expect(encoderProc.args).not.toContain("--debounce-period");
     });
 
-    test("power button press fires onPowerToggle callback", () => {
+    test("power button press fires onPowerToggle callback", (done) => {
         const cb = jest.fn();
         adapter.onPowerToggle(cb);
 
-        const watchCallback = powerBtn.watch.mock.calls[0][0];
-        watchCallback(null);
-
-        expect(cb).toHaveBeenCalledTimes(1);
+        emitLine(buttonProc, "17");
+        setImmediate(() => {
+            expect(cb).toHaveBeenCalledTimes(1);
+            done();
+        });
     });
 
-    test("mode button press fires onModeToggle callback", () => {
+    test("mode button press fires onModeToggle callback", (done) => {
         const cb = jest.fn();
         adapter.onModeToggle(cb);
 
-        const watchCallback = modeBtn.watch.mock.calls[0][0];
-        watchCallback(null);
-
-        expect(cb).toHaveBeenCalledTimes(1);
+        emitLine(buttonProc, "27");
+        setImmediate(() => {
+            expect(cb).toHaveBeenCalledTimes(1);
+            done();
+        });
     });
 
-    test("action button press fires onActionPress callback", () => {
+    test("action button press fires onActionPress callback", (done) => {
         const cb = jest.fn();
         adapter.onActionPress(cb);
 
-        const watchCallback = actionBtn.watch.mock.calls[0][0];
-        watchCallback(null);
-
-        expect(cb).toHaveBeenCalledTimes(1);
+        emitLine(buttonProc, "22");
+        setImmediate(() => {
+            expect(cb).toHaveBeenCalledTimes(1);
+            done();
+        });
     });
 
-    test("encoder button press fires onVolumeMute callback", () => {
+    test("encoder button press fires onVolumeMute callback", (done) => {
         const cb = jest.fn();
         adapter.onVolumeMute(cb);
 
-        const watchCallback = encoderBtn.watch.mock.calls[0][0];
-        watchCallback(null);
-
-        expect(cb).toHaveBeenCalledTimes(1);
-    });
-
-    test("button watch error does not fire callback", () => {
-        const cb = jest.fn();
-        adapter.onPowerToggle(cb);
-
-        const watchCallback = powerBtn.watch.mock.calls[0][0];
-        watchCallback(new Error("boom"));
-
-        expect(cb).not.toHaveBeenCalled();
+        emitLine(buttonProc, "25");
+        setImmediate(() => {
+            expect(cb).toHaveBeenCalledTimes(1);
+            done();
+        });
     });
 
     // A full clockwise quadrature sequence (Gray code 00 -> 01 -> 11 -> 10 -> 00)
     // should report exactly one +1 detent via the volume callback.
-    test("clockwise quadrature sequence produces a single positive volume delta", () => {
+    test("clockwise quadrature sequence produces a single positive volume delta", (done) => {
         const cb = jest.fn();
         adapter.onVolumeChange(cb);
 
-        const encoderCallback = encoderA.watch.mock.calls[0][0];
-        const sequence: Array<[0 | 1, 0 | 1]> = [
-            [0, 1],
-            [1, 1],
-            [1, 0],
-            [0, 0],
+        // (pin, edgeCode) pairs: edgeCode 1 = rising, 2 = falling.
+        const events: Array<[number, number]> = [
+            [24, 1], // B rises: 00 -> 01
+            [23, 1], // A rises: 01 -> 11
+            [24, 2], // B falls: 11 -> 10
+            [23, 2], // A falls: 10 -> 00
         ];
 
-        for (const [a, b] of sequence) {
-            encoderA._value = a;
-            encoderB._value = b;
-            encoderCallback(null);
+        for (const [pin, edge] of events) {
+            emitLine(encoderProc, `${pin} ${edge}`);
         }
 
-        expect(cb).toHaveBeenCalledTimes(1);
-        expect(cb).toHaveBeenCalledWith(1);
+        setImmediate(() => {
+            expect(cb).toHaveBeenCalledTimes(1);
+            expect(cb).toHaveBeenCalledWith(1);
+            done();
+        });
     });
 
-    test("counter-clockwise quadrature sequence produces a single negative volume delta", () => {
+    test("counter-clockwise quadrature sequence produces a single negative volume delta", (done) => {
         const cb = jest.fn();
         adapter.onVolumeChange(cb);
 
-        const encoderCallback = encoderB.watch.mock.calls[0][0];
-        const sequence: Array<[0 | 1, 0 | 1]> = [
-            [1, 0],
-            [1, 1],
-            [0, 1],
-            [0, 0],
+        const events: Array<[number, number]> = [
+            [23, 1], // A rises: 00 -> 10
+            [24, 1], // B rises: 10 -> 11
+            [23, 2], // A falls: 11 -> 01
+            [24, 2], // B falls: 01 -> 00
         ];
 
-        for (const [a, b] of sequence) {
-            encoderA._value = a;
-            encoderB._value = b;
-            encoderCallback(null);
+        for (const [pin, edge] of events) {
+            emitLine(encoderProc, `${pin} ${edge}`);
         }
 
-        expect(cb).toHaveBeenCalledTimes(1);
-        expect(cb).toHaveBeenCalledWith(-1);
+        setImmediate(() => {
+            expect(cb).toHaveBeenCalledTimes(1);
+            expect(cb).toHaveBeenCalledWith(-1);
+            done();
+        });
     });
 
-    test("bouncy/illegal transitions do not produce spurious volume callbacks", () => {
+    test("bouncy/illegal transitions do not produce spurious volume callbacks", (done) => {
         const cb = jest.fn();
         adapter.onVolumeChange(cb);
 
-        const encoderCallback = encoderA.watch.mock.calls[0][0];
         // Jump straight from 00 to 11 - not a legal single-step quadrature
         // transition - should be rejected by the FSM rather than counted.
-        encoderA._value = 1;
-        encoderB._value = 1;
-        encoderCallback(null);
+        emitLine(encoderProc, "23 1");
+        emitLine(encoderProc, "24 1");
 
-        expect(cb).not.toHaveBeenCalled();
+        setImmediate(() => {
+            expect(cb).not.toHaveBeenCalled();
+            done();
+        });
     });
 
-    test("custom volumeStepPerDetent scales the emitted delta", () => {
-        instances.length = 0;
+    test("custom volumeStepPerDetent scales the emitted delta", (done) => {
+        spawnedProcs.length = 0;
         const customAdapter = new GpioInputAdapter({
             powerButtonPin: 17,
             modeButtonPin: 27,
@@ -197,34 +175,32 @@ describe("GpioInputAdapter", () => {
             encoderButtonPin: 25,
             volumeStepPerDetent: 5,
         });
-        const [, , , , eA, eB] = instances;
         customAdapter.start();
+        const [, customEncoderProc] = spawnedProcs;
 
         const cb = jest.fn();
         customAdapter.onVolumeChange(cb);
 
-        const encoderCallback = eA.watch.mock.calls[0][0];
-        const sequence: Array<[0 | 1, 0 | 1]> = [
-            [0, 1],
-            [1, 1],
-            [1, 0],
-            [0, 0],
+        const events: Array<[number, number]> = [
+            [24, 1],
+            [23, 1],
+            [24, 2],
+            [23, 2],
         ];
-        for (const [a, b] of sequence) {
-            eA._value = a;
-            eB._value = b;
-            encoderCallback(null);
+        for (const [pin, edge] of events) {
+            emitLine(customEncoderProc, `${pin} ${edge}`);
         }
 
-        expect(cb).toHaveBeenCalledWith(5);
+        setImmediate(() => {
+            expect(cb).toHaveBeenCalledWith(5);
+            done();
+        });
     });
 
-    test("stop unwatches and unexports all gpio lines", () => {
+    test("stop kills both gpiomon processes", () => {
         adapter.stop();
 
-        for (const instance of [powerBtn, modeBtn, actionBtn, encoderA, encoderB, encoderBtn]) {
-            expect(instance.unwatchAll).toHaveBeenCalledTimes(1);
-            expect(instance.unexport).toHaveBeenCalledTimes(1);
-        }
+        expect(buttonProc.kill).toHaveBeenCalledTimes(1);
+        expect(encoderProc.kill).toHaveBeenCalledTimes(1);
     });
 });

@@ -179,7 +179,7 @@ cmd_deploy() {
     echo "== Installing system packages =="
     apt-get update
     apt-get upgrade -y
-    apt-get install -y curl mpv alsa-utils bluez i2c-tools
+    apt-get install -y curl mpv alsa-utils bluez i2c-tools gpiod
 
     echo "== Enabling I2C interface (for the LCD display) =="
     if command -v raspi-config >/dev/null 2>&1; then
