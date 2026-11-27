@@ -148,7 +148,15 @@ cmd_deploy() {
     bdir="$(boot_dir)"
     echo "== Setting up persistent preset/settings storage on $bdir =="
     mkdir -p "$bdir/pi-radio"
-    chown "$APP_USER:$APP_USER" "$bdir/pi-radio"
+    # The boot partition is vfat, which has no concept of per-file Unix
+    # ownership - chown always fails there with "Operation not permitted",
+    # even as root, since it's an unsupported filesystem operation rather
+    # than a permissions issue. Its default mount options (no uid=/gid=/
+    # umask=) already leave it world-writable, so no chown is needed for
+    # $APP_USER to write presets/settings there.
+    if ! findmnt -n -o FSTYPE --target "$bdir" | grep -qi vfat; then
+        chown "$APP_USER:$APP_USER" "$bdir/pi-radio"
+    fi
     {
         echo "PI_RADIO_PRESETS_PATH=$bdir/pi-radio/presets.json"
         echo "PI_RADIO_SETTINGS_PATH=$bdir/pi-radio/settings.json"
