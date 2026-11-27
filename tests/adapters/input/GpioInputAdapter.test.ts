@@ -122,7 +122,7 @@ describe("GpioInputAdapter", () => {
 
         setImmediate(() => {
             expect(cb).toHaveBeenCalledTimes(1);
-            expect(cb).toHaveBeenCalledWith(1);
+            expect(cb).toHaveBeenCalledWith(6);
             done();
         });
     });
@@ -144,7 +144,7 @@ describe("GpioInputAdapter", () => {
 
         setImmediate(() => {
             expect(cb).toHaveBeenCalledTimes(1);
-            expect(cb).toHaveBeenCalledWith(-1);
+            expect(cb).toHaveBeenCalledWith(-6);
             done();
         });
     });

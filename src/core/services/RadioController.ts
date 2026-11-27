@@ -12,6 +12,18 @@ import { logger } from "../util/Logger";
 
 const MODES: Mode[] = ["internet_radio", "bluetooth"];
 
+// HD44780-compatible character ROMs (shared by both the PCF8574 and
+// AiP31068L LCD adapters) map 0xFF to a solid filled square - using it here
+// (rather than e.g. "█", which isn't representable as a single byte) keeps
+// RadioController's bar string paintable as-is by both adapters' writeChars.
+const VOLUME_BAR_WIDTH = 16;
+const VOLUME_BAR_FILLED_CHAR = "\xFF";
+const VOLUME_DISPLAY_DURATION_MS = 5000;
+// Capped at 96 (not 100) so it divides evenly into the 16-square display bar
+// (96 / 16 = 6) - every volume unit maps to exactly 1/6 of a square, instead
+// of rounding unevenly against 100.
+const VOLUME_MAX = 96;
+
 export class RadioController {
 
     private inputPort : InputPort;
@@ -192,13 +204,29 @@ export class RadioController {
     }
 
     private async onSetVolume(vol: number): Promise<void> {
-        logger.log(`[RadioController] Setting volume: ${this.state.volume} -> ${clamp(0, 100, vol)}`);
-        this.state.volume = clamp(0, 100, vol);
+        const newVolume = clamp(0, VOLUME_MAX, vol);
+        const changed = newVolume != this.state.volume;
+        logger.log(`[RadioController] Setting volume: ${this.state.volume} -> ${newVolume}`);
+        this.state.volume = newVolume;
+
+        let unmuted = false;
         if(this.state.muted) {
             this.state.muted = false;
+            unmuted = true;
+            // Restore the persistent (non-muted) content first, so that once
+            // the transient volume bar below expires, the display reverts to
+            // it rather than to the stale "MUTED" screen.
             this.refreshDisplay();
         }
+        if(changed || unmuted) {
+            this.displayPort.showTransient("Volume", this.volumeBar(this.state.volume), VOLUME_DISPLAY_DURATION_MS);
+        }
         await this.audioPort.setVolume(this.state.volume);
+    }
+
+    private volumeBar(volume: number): string {
+        const filled = Math.round(clamp(0, VOLUME_MAX, volume) / VOLUME_MAX * VOLUME_BAR_WIDTH);
+        return VOLUME_BAR_FILLED_CHAR.repeat(filled) + " ".repeat(VOLUME_BAR_WIDTH - filled);
     }
 
     private async onSetMute(muted: boolean): Promise<void> {

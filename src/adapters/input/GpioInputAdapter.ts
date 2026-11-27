@@ -78,7 +78,7 @@ export class GpioInputAdapter implements InputPort {
     constructor(options: GpioInputAdapterOptions) {
         this.chip = options.gpioChip ?? "gpiochip0";
         this.buttonDebounceMs = options.buttonDebounceMs ?? 25;
-        this.volumeStepPerDetent = options.volumeStepPerDetent ?? 1;
+        this.volumeStepPerDetent = options.volumeStepPerDetent ?? 6;
 
         this.powerPin = options.powerButtonPin;
         this.modePin = options.modeButtonPin;

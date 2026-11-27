@@ -373,6 +373,7 @@ describe('RadioController', () => {
 
         expect(state.volume).toBe(70);
         expect(audioPort.setVolume).toHaveBeenCalledWith(70);
+        expect(displayPort.showTransient).toHaveBeenCalledWith("Volume", "\xFF".repeat(12) + " ".repeat(4), 5000);
     });
 
     test('volume cannot go below 0', async () => {
@@ -391,6 +392,26 @@ describe('RadioController', () => {
 
         expect(state.volume).toBe(0);
         expect(audioPort.setVolume).toHaveBeenCalledWith(0);
+        expect(displayPort.showTransient).toHaveBeenCalledWith("Volume", " ".repeat(16), 5000);
+    });
+
+    test('volume cannot exceed 96', async () => {
+        state.volume = 90;
+
+        let handler: any;
+        inputPort.onVolumeChange.mockImplementation((cb: any) => handler = cb);
+
+        controller.init();
+
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
+
+        await handler(50);
+
+        expect(state.volume).toBe(96);
+        expect(audioPort.setVolume).toHaveBeenCalledWith(96);
+        expect(displayPort.showTransient).toHaveBeenCalledWith("Volume", "\xFF".repeat(16), 5000);
     });
 
     // ------------------------
@@ -464,6 +485,7 @@ describe('RadioController', () => {
         expect(state.volume).toBe(60);
         expect(state.muted).toBe(false);
         expect(audioPort.setVolume).toHaveBeenCalledWith(60);
+        expect(displayPort.showTransient).toHaveBeenCalledWith("Volume", "\xFF".repeat(10) + " ".repeat(6), 5000);
     });
 
     test('api setVolume while muted also unmutes', async () => {
@@ -481,6 +503,7 @@ describe('RadioController', () => {
 
         expect(state.muted).toBe(false);
         expect(audioPort.setVolume).toHaveBeenCalledWith(70);
+        expect(displayPort.showTransient).toHaveBeenCalledWith("Volume", "\xFF".repeat(12) + " ".repeat(4), 5000);
     });
 
     test('api setMute works', async () => {
@@ -660,6 +683,22 @@ describe('RadioController', () => {
 
         expect(state.volume).toBe(55);
         expect(audioPort.setVolume).toHaveBeenCalledWith(55);
+        expect(displayPort.showTransient).toHaveBeenCalledWith("Volume", "\xFF".repeat(9) + " ".repeat(7), 5000);
+    });
+
+    test('volume change that does not alter the clamped value does not flash the volume bar', async () => {
+        let handler: any;
+        inputPort.onVolumeChange.mockImplementation((cb: any) => handler = cb);
+
+        controller.init();
+
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
+
+        await handler(0);
+
+        expect(displayPort.showTransient).not.toHaveBeenCalled();
     });
 
 });

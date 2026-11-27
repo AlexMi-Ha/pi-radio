@@ -43,6 +43,7 @@ function createInputAdapter(useHardware: boolean): InputPort & { start(): void }
     encoderAPin: envInt("PI_RADIO_GPIO_ENCODER_A", 23),
     encoderBPin: envInt("PI_RADIO_GPIO_ENCODER_B", 24),
     encoderButtonPin: envInt("PI_RADIO_GPIO_ENCODER_BTN", 25),
+    volumeStepPerDetent: envInt("PI_RADIO_VOLUME_STEP", 6),
   });
 }
 

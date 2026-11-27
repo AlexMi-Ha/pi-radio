@@ -96,6 +96,7 @@ above), each with a default placeholder value:
 | `PI_RADIO_GPIO_ENCODER_A` | `23`    | Rotary encoder A (quadrature) GPIO|
 | `PI_RADIO_GPIO_ENCODER_B` | `24`    | Rotary encoder B (quadrature) GPIO|
 | `PI_RADIO_GPIO_ENCODER_BTN`| `25`   | Rotary encoder push button (mute) GPIO|
+| `PI_RADIO_VOLUME_STEP`    | `6`     | Volume change per encoder detent  |
 | `PI_RADIO_I2C_BUS`        | `1`     | I2C bus number (`/dev/i2c-1`)     |
 | `PI_RADIO_I2C_LCD_ADDRESS`| `0x3e`  | AiP31068L LCD module I2C address  |
 
