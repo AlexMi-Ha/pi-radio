@@ -81,13 +81,20 @@ export class RadioController {
             }
             this.refreshDisplay();
         });
+
+        // Apply the side effects (display/audio/output) matching the initial
+        // state, since it was set directly on the State object rather than
+        // through onSetPower().
+        this.powerAsyncProcessor.runSafe(() => this.onSetPower(this.state.power));
     }
 
     private configureInputAdapter() {
         this.inputPort.onModeToggle(() => {
+            if(this.state.power != "power") return;
             this.modeAsyncProcessor.runSafe(() => this.onSetMode(this.nextMode()));
         });
         this.inputPort.onActionPress(() => {
+            if(this.state.power != "power") return;
             if(this.state.mode == "internet_radio") {
                 this.presetAsyncProcessor.runSafe(() => this.onSetPreset(this.nextPreset()));
             }else if(this.state.mode == "bluetooth") {
@@ -95,9 +102,11 @@ export class RadioController {
             }
         });
         this.inputPort.onVolumeChange((delta: number) => {
+            if(this.state.power != "power") return;
             this.volumeAsyncProcessor.runSafe(() => this.onSetVolume(this.state.volume + delta));
         });
         this.inputPort.onVolumeMute(() => {
+            if(this.state.power != "power") return;
             this.muteAsyncProcessor.runSafe(() => this.onSetMute(!this.state.muted));
         });
         this.inputPort.onPowerToggle(() => {
