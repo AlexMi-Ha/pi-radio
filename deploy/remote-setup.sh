@@ -80,6 +80,27 @@ cmd_deploy() {
         echo "PI_RADIO_USE_HARDWARE=true"
     } > "$ENV_FILE"
 
+    # If deploy/.env was shipped (see provision.sh), append it on top - since
+    # systemd's EnvironmentFile parsing keeps the last assignment of a given
+    # key, any of the three defaults just written above can still be
+    # overridden by the user's own file, while anything they didn't set
+    # (e.g. PI_RADIO_BLUETOOTH_NAME) just adds new variables.
+    if [ -f "$staging_dir/pi-radio.env" ]; then
+        echo "== Applying custom settings from deploy/.env =="
+        cat "$staging_dir/pi-radio.env" >> "$ENV_FILE"
+    fi
+
+    # PI_RADIO_BLUETOOTH_NAME, if set in deploy/.env, is applied here rather
+    # than left to the app - it's a one-off adapter setting (persisted by
+    # bluetoothd itself), not something the app needs to care about at
+    # runtime.
+    local bt_name
+    bt_name="$(grep -E '^PI_RADIO_BLUETOOTH_NAME=' "$ENV_FILE" | tail -n1 | cut -d= -f2-)"
+    if [ -n "$bt_name" ]; then
+        echo "== Setting Bluetooth device name to '$bt_name' =="
+        bluetoothctl system-alias "$bt_name"
+    fi
+
     echo "== Installing systemd service =="
     cp "$staging_dir/pi-radio.service" "/etc/systemd/system/$SERVICE_NAME.service"
     systemctl daemon-reload

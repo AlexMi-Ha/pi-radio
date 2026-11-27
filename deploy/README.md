@@ -48,20 +48,44 @@ This builds the app locally, copies `dist/`, `package.json` and
 `package-lock.json` to the Pi, and on the Pi: installs Node.js, `mpv`,
 `alsa-utils` and `bluez`, runs `npm ci --omit=dev`, and installs + enables
 the `pi-radio` systemd service (auto-starts on boot, restarts on crash).
+It then enables the read-only root overlay (see step 4 below) and reboots -
+so every `provision.sh` run, including the first one, always ends with the
+filesystem locked down, protecting the SD card from power-loss corruption.
 
-Open `http://pi-radio.local:4200/` to confirm it's running.
+Give it a minute to reboot, then open `http://pi-radio.local:4200/` to
+confirm it's running.
 
 This also enables the I2C interface (`raspi-config nonint do_i2c 0`) and sets
 `PI_RADIO_USE_HARDWARE=true` in `/etc/default/pi-radio`, which switches the
 app from the console-logging mock input/display adapters (used by `npm run
 dev`) to the real GPIO buttons/encoder and I2C LCD adapters.
 
+### Custom configuration (`deploy/.env`)
+
+All of the environment variables below can be set in one place on your dev
+machine instead of editing `/etc/default/pi-radio` on the Pi by hand:
+
+```bash
+cp deploy/.env.example deploy/.env
+# edit deploy/.env
+./deploy/provision.sh pi@pi-radio.local
+```
+
+`deploy/.env` is gitignored (machine-specific); `deploy/.env.example` is the
+checked-in template listing every variable with its default. If present,
+`provision.sh` copies it to the Pi and `remote-setup.sh` appends it on top of
+the three defaults it always computes itself (`PI_RADIO_PRESETS_PATH`,
+`PI_RADIO_SETTINGS_PATH`, `PI_RADIO_USE_HARDWARE`) when writing
+`/etc/default/pi-radio` - so you only need to set the variables you actually
+want to change, and can still override those three if needed. Re-run
+`provision.sh` after editing `deploy/.env` to apply changes.
+
 ### Hardware configuration
 
 Buttons, the rotary encoder, and the LCD's I2C bus/address are configured via
 environment variables (set in `/etc/default/pi-radio` alongside
-`PI_RADIO_PRESETS_PATH`/`PI_RADIO_SETTINGS_PATH`), each with a default
-placeholder value:
+`PI_RADIO_PRESETS_PATH`/`PI_RADIO_SETTINGS_PATH`, or via `deploy/.env` as
+above), each with a default placeholder value:
 
 | Variable                  | Default | Meaning                          |
 |---------------------------|---------|-----------------------------------|
@@ -126,18 +150,23 @@ Bluetooth adapter - confirm pairing, A2DP audio routing, and the "Paired"/
 track-title display after deploying to a Pi with a Bluetooth adapter and an
 actual phone/device to pair.
 
-## 4. Lock down the filesystem (read-only root)
+The name advertised to pairing devices defaults to the Pi's hostname. To set
+a custom name, set `PI_RADIO_BLUETOOTH_NAME` in `deploy/.env` (see above) -
+`remote-setup.sh` applies it once via `bluetoothctl system-alias` during
+deploy (this is persisted by `bluetoothd` itself, not the app, so it isn't
+re-applied on every app start - re-run `./deploy/provision.sh` after
+changing it).
 
-Once you're happy with the deployed version, protect the SD card from
-corruption on power loss by enabling Raspberry Pi OS's built-in overlay
-filesystem (root becomes a RAM-backed overlay; the underlying filesystem is
-never written to again, so a power cut can't corrupt it):
+## 4. The read-only root filesystem
 
-```bash
-ssh pi@pi-radio.local
-sudo /tmp/pi-radio-deploy/remote-setup.sh enable-readonly
-sudo reboot
-```
+`./deploy/provision.sh` always ends by enabling Raspberry Pi OS's built-in
+overlay filesystem and rebooting (root becomes a RAM-backed overlay; the
+underlying filesystem is never written to again, so a power cut can't
+corrupt it) - this happens automatically on every run, including the first
+one, so you never end up with an unprotected SD card. You don't need to run
+this step by hand; it's documented here so you understand what
+`provision.sh` is doing and why a plain `ssh`+edit on the Pi won't persist
+(see "Updating the app later" below).
 
 Preset data (the 5 station URLs) is stored on the boot partition
 (`/boot/firmware/pi-radio/presets.json`), which is separate FAT32 storage
@@ -159,21 +188,22 @@ on every reboot.
 
 Once the overlay is active, the root filesystem (including `/opt/pi-radio`)
 only "writes" into RAM - any redeploy would be silently lost on the next
-reboot. So before redeploying:
+reboot. `./deploy/provision.sh` handles the whole round-trip automatically
+every time you run it:
 
-```bash
-ssh pi@pi-radio.local
-sudo /tmp/pi-radio-deploy/remote-setup.sh disable-readonly
-sudo reboot
-```
+1. Checks the target over SSH; if the overlay is active, disables it and
+   reboots the Pi, waiting for it to come back online.
+2. Builds and deploys the app as normal.
+3. Enables the overlay again and reboots once more, so the Pi always ends
+   up locked down with the update applied.
 
-Then, once it's back up:
+So updating code or `deploy/.env` is always just:
 
 ```bash
 ./deploy/provision.sh pi@pi-radio.local
 ```
 
-`remote-setup.sh deploy` refuses to run while the overlay is active, so you
-can't accidentally deploy into storage that disappears on reboot.
-
-Finally, re-enable the overlay (step 4 above) and reboot once more.
+`remote-setup.sh deploy` still refuses to run while the overlay is active
+(as a safety net, in case the automatic disable/reboot step above was
+skipped or failed), so you can't accidentally deploy into storage that
+disappears on reboot.
