@@ -271,6 +271,25 @@ cmd_deploy() {
     echo "'sudo reboot' yourself.)"
 }
 
+# raspi-config's do_overlayfs enables overlayroot (see /etc/overlayroot.conf)
+# with a bare "overlayroot=tmpfs" kernel param, leaving its "recurse" option
+# at the default of 1 - which overlayroot.conf documents as "all filesystems
+# will be mounted read-only", not just "/". It discovers every OTHER local
+# mount in /etc/fstab too (confirmed via mount(8) after enabling: our own
+# $APP_DATA_MOUNT ext4 loop mount gets a SECOND tmpfs-backed overlay stacked
+# on top of it, same as root) and silently discards writes to it on every
+# reboot - defeating the entire point of that partition. recurse=0 limits
+# the read-only/tmpfs treatment to "/" alone, leaving other local mounts
+# (just the data partition, here) writing straight through to their real
+# backing device.
+set_overlayroot_recurse_0() {
+    local cmdline="$(boot_dir)/cmdline.txt"
+    if grep -qE '(^|[[:space:]])overlayroot=tmpfs:recurse=0([[:space:]]|$)' "$cmdline"; then
+        return
+    fi
+    sed -i -E 's/(^|[[:space:]])overlayroot=tmpfs([[:space:]]|$)/\1overlayroot=tmpfs:recurse=0\2/' "$cmdline"
+}
+
 cmd_enable_readonly() {
     require_root
     echo "== Enabling the read-only root overlay =="
@@ -286,6 +305,7 @@ cmd_enable_readonly() {
         # ensure_boot_writable) while the real /etc/fstab is still editable
         # (the overlay itself only takes effect on the next reboot).
         ensure_boot_writable
+        set_overlayroot_recurse_0
         echo "Enabled. Reboot to activate: sudo reboot"
     else
         echo "Automatic enable failed or 'do_overlayfs' is unsupported on this OS version." >&2
