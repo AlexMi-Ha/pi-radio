@@ -175,6 +175,46 @@ unblock_bluetooth_rfkill() {
     rfkill unblock bluetooth
 }
 
+# bluez-alsa-utils ships a bluealsa.service, but its default profile set isn't
+# guaranteed to include A2DP sink across Raspberry Pi OS versions - without
+# it, a phone can pair/connect fine but still has no A2DP sink profile to
+# stream audio to, so it keeps playing out of its own speakers even once
+# "Paired" in the app. Pinning -p a2dp-sink via a drop-in makes the Pi always
+# advertise itself as a sink, which is the only profile BluetoothAudioProvider
+# (via bluealsa-aplay) ever needs.
+configure_bluealsa_sink() {
+    echo "== Configuring bluealsa for A2DP sink =="
+    mkdir -p /etc/systemd/system/bluealsa.service.d
+    cat > /etc/systemd/system/bluealsa.service.d/override.conf <<'EOF'
+[Service]
+ExecStart=
+ExecStart=/usr/bin/bluealsa -p a2dp-sink
+EOF
+    systemctl daemon-reload
+    systemctl enable bluealsa.service
+    systemctl restart bluealsa.service
+}
+
+# BlueZ defaults the adapter's advertised Class of Device major/minor bits to
+# 0 ("Miscellaneous") - phones (confirmed on iOS) only list a Bluetooth
+# accessory in their audio-output picker once it's paired AND its class says
+# "this is an audio device", so without this the Pi can bond/connect fine but
+# never actually appears as a selectable A2DP output. 0x000414 = major class
+# Audio/Video (0x04), minor class Loudspeaker (0x05) - see the Bluetooth
+# Assigned Numbers "Baseband" class-of-device tables. Service class bits
+# (Rendering/Audio/Telephony, already set correctly) are managed separately
+# by bluetoothd itself based on active profiles, not by this config value.
+configure_bluetooth_device_class() {
+    echo "== Setting Bluetooth device class to Audio/Loudspeaker =="
+    local conf=/etc/bluetooth/main.conf
+    if grep -qE '^[[:space:]]*#?[[:space:]]*Class[[:space:]]*=' "$conf"; then
+        sed -i -E 's/^[[:space:]]*#?[[:space:]]*Class[[:space:]]*=.*/Class = 0x000414/' "$conf"
+    else
+        sed -i '/^\[General\]/a Class = 0x000414' "$conf"
+    fi
+    systemctl restart bluetooth
+}
+
 cmd_deploy() {
     require_root
     local staging_dir="${1:?staging directory required}"
@@ -191,7 +231,7 @@ cmd_deploy() {
     echo "== Installing system packages =="
     apt-get update
     apt-get upgrade -y
-    apt-get install -y curl mpv alsa-utils bluez i2c-tools gpiod
+    apt-get install -y curl mpv alsa-utils bluez bluez-alsa-utils i2c-tools gpiod
 
     echo "== Enabling I2C interface (for the LCD display) =="
     if command -v raspi-config >/dev/null 2>&1; then
@@ -235,6 +275,8 @@ cmd_deploy() {
     fi
 
     unblock_bluetooth_rfkill
+    configure_bluetooth_device_class
+    configure_bluealsa_sink
 
     # PI_RADIO_BLUETOOTH_NAME, if set in deploy/.env, is applied here rather
     # than left to the app - it's a one-off adapter setting (persisted by
@@ -290,6 +332,20 @@ set_overlayroot_recurse_0() {
     sed -i -E 's/(^|[[:space:]])overlayroot=tmpfs([[:space:]]|$)/\1overlayroot=tmpfs:recurse=0\2/' "$cmdline"
 }
 
+# raspi-config's own disable_overlayfs() strips the overlay param with
+# `sed ... "s/\(.*\)overlayroot=tmpfs \(.*\)/\1\2/"` - that regex requires a
+# literal space right after "tmpfs", which set_overlayroot_recurse_0 above
+# removes by rewriting the token to "overlayroot=tmpfs:recurse=0". With the
+# suffix in the way, raspi-config's sed silently matches nothing (not an
+# error), so `raspi-config nonint do_overlayfs 1` reports success while
+# leaving the overlay fully enabled - confirmed on-device: cmd_disable_readonly
+# printed "Disabled" but the overlay was still active after the next reboot.
+# Strip the suffix back off first so raspi-config's exact-match regex works.
+unset_overlayroot_recurse_0() {
+    local cmdline="$(boot_dir)/cmdline.txt"
+    sed -i -E 's/(^|[[:space:]])overlayroot=tmpfs:recurse=0([[:space:]]|$)/\1overlayroot=tmpfs\2/' "$cmdline"
+}
+
 cmd_enable_readonly() {
     require_root
     echo "== Enabling the read-only root overlay =="
@@ -321,6 +377,8 @@ cmd_disable_readonly() {
         echo "raspi-config not found. Disable manually via your OS's overlay filesystem option." >&2
         exit 1
     fi
+    ensure_boot_writable
+    unset_overlayroot_recurse_0
     if raspi-config nonint do_overlayfs 1; then
         # The /boot/firmware "ro" fstab entry is independent of the root
         # overlay toggle - disabling the overlay alone doesn't revert it.

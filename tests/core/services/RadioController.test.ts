@@ -337,6 +337,30 @@ describe('RadioController', () => {
         expect(audioPort.enablePairing).toHaveBeenCalled();
     });
 
+    test('pairing state reverts to not-paired on its own if no device ever connects', async () => {
+        state.mode = "bluetooth";
+        let handler: any;
+        inputPort.onActionPress.mockImplementation((cb: any) => handler = cb);
+
+        controller.init();
+
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
+        jest.useFakeTimers();
+        try {
+            await handler();
+            expect(state.pairing).toBe(true);
+
+            jest.runAllTimers();
+
+            expect(state.pairing).toBe(false);
+            expect(outputPort.setPairingState).toHaveBeenCalledWith(false);
+        } finally {
+            jest.useRealTimers();
+        }
+    });
+
     test('ignores action press via input while idle', async () => {
         state.power = "idle";
         let handler: any;

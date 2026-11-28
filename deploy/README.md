@@ -152,8 +152,9 @@ active.
 
 ### Bluetooth
 
-No extra setup is needed beyond the `bluez` package `provision.sh` already
-installs - `remote-setup.sh` also runs `rfkill unblock bluetooth` on every
+`provision.sh` installs `bluez` (pairing/connection control) and
+`bluez-alsa-utils` (actually routes the A2DP audio stream into ALSA - see
+below); `remote-setup.sh` also runs `rfkill unblock bluetooth` on every
 deploy, since some Pi OS images ship with the onboard Bluetooth radio
 soft-blocked, which otherwise makes `bluetoothctl power on` (and so
 switching the app into `bluetooth` mode) fail with `bluetoothd` logging
@@ -161,11 +162,31 @@ switching the app into `bluetooth` mode) fail with `bluetoothd` logging
 AVRCP track metadata work by talking to `bluetoothd` over the system D-Bus
 (`org.bluez`), which any user
 (including the `pi` service account) can read from under BlueZ's default
-D-Bus policy. This has only been developed against the BlueZ D-Bus API
-documentation (`https://github.com/bluez/bluez/tree/master/doc`), not a real
-Bluetooth adapter - confirm pairing, A2DP audio routing, and the "Paired"/
-track-title display after deploying to a Pi with a Bluetooth adapter and an
-actual phone/device to pair.
+D-Bus policy.
+
+While `bluetooth` mode is active, `BluetoothAudioProvider` keeps two helper
+processes running alongside it:
+- A persistent `bluetoothctl` process registers a `NoInputNoOutput`
+  ("Just Works") pairing agent as BlueZ's default agent, so a phone's
+  pairing/bonding request is auto-accepted instead of stalling with nothing
+  to respond to it (the one-shot `bluetoothctl ... on` commands used to
+  enable discoverability/pairability exit immediately and never register an
+  agent on their own). Without this, the app's "Pairing" display can be left
+  blinking indefinitely if bonding never completes.
+- `bluealsa-aplay 00:00:00:00:00:00` pulls the decoded A2DP audio for
+  whichever device is currently connected out of `bluealsa` and plays it
+  through ALSA. `remote-setup.sh` pins `bluealsa.service` to the `a2dp-sink`
+  profile via a systemd drop-in (`configure_bluealsa_sink` in
+  `remote-setup.sh`) so the Pi always advertises itself as a sink - without
+  both of these, pairing/connection can succeed while the phone still has no
+  functioning audio sink to send sound to, and keeps playing out of its own
+  speakers.
+
+This has only been developed against the BlueZ D-Bus API documentation
+(`https://github.com/bluez/bluez/tree/master/doc`) and `bluez-alsa`'s own
+docs, not a real Bluetooth adapter - confirm pairing, A2DP audio routing, and
+the "Paired"/track-title display after deploying to a Pi with a Bluetooth
+adapter and an actual phone/device to pair.
 
 The name advertised to pairing devices defaults to the Pi's hostname. To set
 a custom name, set `PI_RADIO_BLUETOOTH_NAME` in `deploy/.env` (see above) -

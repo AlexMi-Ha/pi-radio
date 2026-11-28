@@ -24,6 +24,11 @@ const VOLUME_DISPLAY_DURATION_MS = 5000;
 // of rounding unevenly against 100.
 const VOLUME_MAX = 96;
 
+// Bonding/A2DP-connection isn't guaranteed to ever complete (e.g. a phone
+// backs out mid-pairing, or BlueZ never reports Device1.Connected) - without
+// a fallback the "Pairing" display would otherwise blink forever.
+const PAIRING_TIMEOUT_MS = 2 * 60 * 1000;
+
 export class RadioController {
 
     private inputPort : InputPort;
@@ -40,6 +45,7 @@ export class RadioController {
     private muteAsyncProcessor: AsyncProcessor;
     private presetAsyncProcessor: AsyncProcessor;
     private pairingAsyncProcessor: AsyncProcessor;
+    private pairingTimeoutHandle: ReturnType<typeof setTimeout> | undefined;
 
     private state: State;
 
@@ -88,6 +94,7 @@ export class RadioController {
             logger.log(`[RadioController] Bluetooth connection changed: connected=${connected}`);
             this.state.connected = connected;
             if(connected) {
+                this.clearPairingTimeout();
                 this.state.pairing = false;
                 this.outputPort.setPairingState(false);
             }
@@ -163,6 +170,7 @@ export class RadioController {
             return;
         }
         logger.log(`[RadioController] Setting mode: ${this.state.mode} -> ${mode}${force ? " (forced)" : ""}`);
+        this.clearPairingTimeout();
         this.state.mode = mode;
         this.state.pairing = false;
         this.state.connected = false;
@@ -244,10 +252,30 @@ export class RadioController {
             return;
         }
         logger.log("[RadioController] Enabling Bluetooth pairing");
+        this.clearPairingTimeout();
         this.state.pairing = true;
         this.outputPort.setPairingState(true);
         this.refreshDisplay();
+        this.pairingTimeoutHandle = setTimeout(() => {
+            if(!this.state.pairing) {
+                return;
+            }
+            logger.log("[RadioController] Pairing timed out, reverting to Not Paired");
+            this.state.pairing = false;
+            this.outputPort.setPairingState(false);
+            this.refreshDisplay();
+        }, PAIRING_TIMEOUT_MS);
+        // Doesn't represent real app work pending - never keep the process (or a
+        // test's Jest worker) alive just to wait this out.
+        this.pairingTimeoutHandle.unref?.();
         await this.audioPort.enablePairing();
+    }
+
+    private clearPairingTimeout(): void {
+        if(this.pairingTimeoutHandle) {
+            clearTimeout(this.pairingTimeoutHandle);
+            this.pairingTimeoutHandle = undefined;
+        }
     }
 
     private nextMode(): Mode {
