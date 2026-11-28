@@ -1,6 +1,7 @@
 import i2c, { I2CBus } from "i2c-bus";
 import { DisplayPort } from "../../core/ports/DisplayPort";
 import { logger } from "../../core/util/Logger";
+import { BootAnimationComponent } from "./BootAnimationComponent";
 
 // PCF8574 I2C LCD backpack bit layout (the ubiquitous "LiquidCrystal_I2C"
 // wiring): P0=RS, P1=RW (unused, always 0), P2=EN, P3=backlight, P4-P7=data
@@ -59,11 +60,14 @@ export class I2cLcdDisplayPort implements DisplayPort {
     // Tracks whether the display (and its backlight) is currently powered on.
     private poweredOn = true;
 
+    private bootAnimation: BootAnimationComponent;
+
     constructor(options: I2cLcdDisplayPortOptions = {}) {
         this.address = options.address ?? 0x27;
         this.scrollIntervalMs = options.scrollIntervalMs ?? 400;
         this.blinkIntervalMs = options.blinkIntervalMs ?? 500;
         this.bus = i2c.openSync(options.busNumber ?? 1);
+        this.bootAnimation = new BootAnimationComponent((line1, line2) => this.renderRaw(line1, line2));
         this.init();
     }
 
@@ -256,12 +260,22 @@ export class I2cLcdDisplayPort implements DisplayPort {
         }
     }
 
-    stop(): void {
+    playBootAnimation(onDone: () => void): void {
+        this.bootAnimation.play(onDone);
+    }
+
+    clear(): void {
+        this.bootAnimation.stop();
         this.clearTimers();
         if (this.transientTimer) {
             clearTimeout(this.transientTimer);
             this.transientTimer = undefined;
         }
+        this.command(LCD_CLEAR_DISPLAY);
+    }
+
+    stop(): void {
+        this.clear();
         try {
             this.bus.closeSync();
         } catch (err) {

@@ -1,10 +1,12 @@
 import { DisplayPort } from "../../core/ports/DisplayPort";
 import { logger } from "../../core/util/Logger";
 import { ClockDisplayComponent } from "./ClockDisplayComponent";
+import { BootAnimationComponent } from "./BootAnimationComponent";
 
 export class MockDisplayPort implements DisplayPort {
 
     private clock: ClockDisplayComponent;
+    private bootAnimation: BootAnimationComponent;
 
     private persistentLine1 = "";
     private persistentLine2 = "";
@@ -13,6 +15,9 @@ export class MockDisplayPort implements DisplayPort {
 
     constructor() {
         this.clock = new ClockDisplayComponent((line1, line2) => {
+            logger.log(`[Display] "${line1}" / "${line2}"`);
+        });
+        this.bootAnimation = new BootAnimationComponent((line1, line2) => {
             logger.log(`[Display] "${line1}" / "${line2}"`);
         });
     }
@@ -56,5 +61,19 @@ export class MockDisplayPort implements DisplayPort {
             this.clock.showClock();
         }
         logger.log(`[Display] power ${on ? "on" : "off"}`);
+    }
+
+    playBootAnimation(onDone: () => void): void {
+        this.bootAnimation.play(onDone);
+    }
+
+    clear(): void {
+        this.bootAnimation.stop();
+        this.clock.hideClock();
+        if (this.transientTimer) {
+            clearTimeout(this.transientTimer);
+            this.transientTimer = undefined;
+        }
+        logger.log("[Display] cleared");
     }
 }

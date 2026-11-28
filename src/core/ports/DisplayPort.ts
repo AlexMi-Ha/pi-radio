@@ -10,4 +10,12 @@ export interface DisplayPort {
     // Turns the physical display (and backlight) on or off, e.g. while idle.
     // Turning back on re-renders the last persistent content.
     setPower(on: boolean): void;
+
+    // Plays a one-off startup animation, then invokes onDone. Called once at
+    // process startup, before any other content is shown.
+    playBootAnimation(onDone: () => void): void;
+
+    // Wipes the physical display immediately, with no persistent content
+    // reapplied afterwards. Called once when the app is shutting down.
+    clear(): void;
 }

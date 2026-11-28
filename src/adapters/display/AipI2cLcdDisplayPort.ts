@@ -2,6 +2,7 @@ import i2c, { I2CBus } from "i2c-bus";
 import { DisplayPort } from "../../core/ports/DisplayPort";
 import { logger } from "../../core/util/Logger";
 import { ClockDisplayComponent } from "./ClockDisplayComponent";
+import { BootAnimationComponent } from "./BootAnimationComponent";
 
 // AiP31068L native-I2C LCD controller (Waveshare LCD1602 I2C Module).
 // Every write is a single I2C transaction [control byte][payload...] - no
@@ -63,6 +64,7 @@ export class AipI2cLcdDisplayPort implements DisplayPort {
     // this adapter only decides when to show/hide it and swallows normal
     // content writes while it's active.
     private clock: ClockDisplayComponent;
+    private bootAnimation: BootAnimationComponent;
 
     constructor(options: AipI2cLcdDisplayPortOptions = {}) {
         this.address = options.address ?? 0x3e;
@@ -70,6 +72,7 @@ export class AipI2cLcdDisplayPort implements DisplayPort {
         this.blinkIntervalMs = options.blinkIntervalMs ?? 500;
         this.bus = i2c.openSync(options.busNumber ?? 1);
         this.clock = new ClockDisplayComponent((line1, line2) => this.renderRaw(line1, line2));
+        this.bootAnimation = new BootAnimationComponent((line1, line2) => this.renderRaw(line1, line2));
         this.init();
     }
 
@@ -247,13 +250,23 @@ export class AipI2cLcdDisplayPort implements DisplayPort {
         }
     }
 
-    stop(): void {
+    playBootAnimation(onDone: () => void): void {
+        this.bootAnimation.play(onDone);
+    }
+
+    clear(): void {
+        this.bootAnimation.stop();
         this.clearTimers();
         this.clock.hideClock();
         if (this.transientTimer) {
             clearTimeout(this.transientTimer);
             this.transientTimer = undefined;
         }
+        this.command(LCD_CLEAR_DISPLAY);
+    }
+
+    stop(): void {
+        this.clear();
         try {
             this.bus.closeSync();
         } catch (err) {

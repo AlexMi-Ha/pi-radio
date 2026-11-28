@@ -108,11 +108,25 @@ const controller = new RadioController({
 });
 
 // -----------
+// Shutdown
+// -----------
+function shutdown(signal: NodeJS.Signals): void {
+  logger.log(`[Shutdown] Received ${signal}, clearing display and exiting.`);
+  displayAdapter.clear();
+  process.exit(0);
+}
+
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+
+// -----------
 // Initialize
 // -----------
-controller.init();
+displayAdapter.playBootAnimation(() => {
+  controller.init();
 
-inputAdapter.start();
-apiAdapter.start();
+  inputAdapter.start();
+  apiAdapter.start();
 
-logger.log("Smart Kitchen Radio DEV environment running...");
+  logger.log("Smart Kitchen Radio DEV environment running...");
+});

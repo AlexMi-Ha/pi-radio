@@ -178,4 +178,41 @@ describe("AipI2cLcdDisplayPort", () => {
         display.setPower(true);
         expect(i2cWriteSync).not.toHaveBeenCalled();
     });
+
+    test("playBootAnimation renders the first wave frame immediately", () => {
+        i2cWriteSync.mockClear();
+
+        display.playBootAnimation(jest.fn());
+
+        const text = decodeCharWrites(rawCalls(i2cWriteSync));
+        const firstFrameLine = "\xFF" + " ".repeat(15);
+        expect(text).toBe(firstFrameLine + firstFrameLine);
+        display.clear();
+    });
+
+    test("clear() sends a Clear Display command and stops any running boot animation", async () => {
+        // Deliberately real timers: clear()'s Clear Display command busy-waits
+        // on the real clock (see I2cLcdDisplayPort's sleepMs), which would spin
+        // forever against a frozen fake-timers Date.now().
+        display.playBootAnimation(jest.fn());
+        i2cWriteSync.mockClear();
+
+        display.clear();
+
+        expect(rawCalls(i2cWriteSync)).toContainEqual([CONTROL_COMMAND, 0x01]);
+
+        i2cWriteSync.mockClear();
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        expect(i2cWriteSync).not.toHaveBeenCalled();
+    });
+
+    test("stop() clears the display before closing the i2c bus", () => {
+        display.showLines("Hello", "World");
+        i2cWriteSync.mockClear();
+
+        display.stop();
+
+        expect(rawCalls(i2cWriteSync)).toContainEqual([CONTROL_COMMAND, 0x01]);
+        expect(closeSync).toHaveBeenCalledTimes(1);
+    });
 });
