@@ -24,6 +24,13 @@ const VOLUME_DISPLAY_DURATION_MS = 5000;
 // of rounding unevenly against 100.
 const VOLUME_MAX = 96;
 
+// Indeterminate "loading" indicator shown on line 2 while a station connects:
+// a short filled segment slides across the line, repeating until playback
+// starts (or the mode/preset/power changes away from it).
+const LOADING_BAR_WIDTH = 16;
+const LOADING_BAR_SEGMENT_WIDTH = 4;
+const LOADING_BAR_ANIMATION_INTERVAL_MS = 150;
+
 // Bonding/A2DP-connection isn't guaranteed to ever complete (e.g. a phone
 // backs out mid-pairing, or BlueZ never reports Device1.Connected) - without
 // a fallback the "Pairing" display would otherwise blink forever.
@@ -46,6 +53,8 @@ export class RadioController {
     private presetAsyncProcessor: AsyncProcessor;
     private pairingAsyncProcessor: AsyncProcessor;
     private pairingTimeoutHandle: ReturnType<typeof setTimeout> | undefined;
+    private loadingAnimationHandle: ReturnType<typeof setInterval> | undefined;
+    private loadingAnimationPos = 0;
 
     private state: State;
 
@@ -87,6 +96,11 @@ export class RadioController {
 
         this.audioPort.onNowPlayingChanged((info) => {
             this.state.nowPlaying = info;
+            if(info.loading) {
+                this.startLoadingAnimation();
+            }else {
+                this.stopLoadingAnimation();
+            }
             this.refreshDisplay();
         });
 
@@ -156,6 +170,7 @@ export class RadioController {
                 preset: this.state.preset
             });
             await this.audioPort.stop();
+            this.stopLoadingAnimation();
             this.outputPort.idle();
             this.displayPort.setPower(false);
         }else {
@@ -175,6 +190,7 @@ export class RadioController {
         this.state.pairing = false;
         this.state.connected = false;
         this.state.nowPlaying = {};
+        this.stopLoadingAnimation();
 
         if(isPresetMode(this.state.mode) && this.presetPort.getNumPresets(this.state.mode) <= this.state.preset) {
             this.state.preset = 0;
@@ -205,6 +221,7 @@ export class RadioController {
         logger.log(`[RadioController] Setting preset: ${this.state.preset} -> ${idx}`);
         this.state.preset = idx;
         this.state.nowPlaying = {};
+        this.stopLoadingAnimation();
         this.outputPort.setPresetState(idx);
         this.refreshDisplay();
 
@@ -235,6 +252,30 @@ export class RadioController {
     private volumeBar(volume: number): string {
         const filled = Math.round(clamp(0, VOLUME_MAX, volume) / VOLUME_MAX * VOLUME_BAR_WIDTH);
         return VOLUME_BAR_FILLED_CHAR.repeat(filled) + " ".repeat(VOLUME_BAR_WIDTH - filled);
+    }
+
+    private startLoadingAnimation() {
+        if(this.loadingAnimationHandle) {
+            return;
+        }
+        this.loadingAnimationPos = 0;
+        this.loadingAnimationHandle = setInterval(() => {
+            this.loadingAnimationPos = (this.loadingAnimationPos + 1) % (LOADING_BAR_WIDTH - LOADING_BAR_SEGMENT_WIDTH + 1);
+            this.refreshDisplay();
+        }, LOADING_BAR_ANIMATION_INTERVAL_MS);
+    }
+
+    private stopLoadingAnimation() {
+        if(this.loadingAnimationHandle) {
+            clearInterval(this.loadingAnimationHandle);
+            this.loadingAnimationHandle = undefined;
+        }
+    }
+
+    private loadingBar(): string {
+        const before = " ".repeat(this.loadingAnimationPos);
+        const after = " ".repeat(LOADING_BAR_WIDTH - LOADING_BAR_SEGMENT_WIDTH - this.loadingAnimationPos);
+        return before + VOLUME_BAR_FILLED_CHAR.repeat(LOADING_BAR_SEGMENT_WIDTH) + after;
     }
 
     private async onSetMute(muted: boolean): Promise<void> {
@@ -311,7 +352,8 @@ export class RadioController {
             const name = this.presetPort.getNameByPreset("internet_radio", this.state.preset);
             const value = this.presetPort.getValueByPreset("internet_radio", this.state.preset);
             const station = name || value || "No station set";
-            return [station, this.state.nowPlaying.title, undefined];
+            const line2 = this.state.nowPlaying.loading ? this.loadingBar() : this.state.nowPlaying.title;
+            return [station, line2, undefined];
         }else {
             if(this.state.pairing) {
                 return ["Pairing", this.state.nowPlaying.title, { blink: true }];

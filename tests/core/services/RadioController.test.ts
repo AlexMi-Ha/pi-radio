@@ -582,6 +582,34 @@ describe('RadioController', () => {
         expect(displayPort.showLines).toHaveBeenCalledWith('http://example.com/station', 'Some Song');
     });
 
+    test('shows an animated loading bar on line 2 while a station is loading', async () => {
+        jest.useFakeTimers();
+        let handler: any;
+        audioPort.onNowPlayingChanged.mockImplementation((cb: any) => handler = cb);
+
+        controller.init();
+        await Promise.resolve();
+
+        jest.clearAllMocks();
+
+        handler({ loading: true });
+
+        expect(state.nowPlaying).toEqual({ loading: true });
+        const [, firstLine2] = displayPort.showLines.mock.calls[0];
+        expect(firstLine2).toMatch(/^[ ]*\xFF{4}[ ]*$/);
+
+        jest.advanceTimersByTime(150);
+        const [, secondLine2] = displayPort.showLines.mock.calls[displayPort.showLines.mock.calls.length - 1];
+        expect(secondLine2).not.toEqual(firstLine2);
+
+        handler({ title: "Some Song" });
+        jest.clearAllMocks();
+        jest.advanceTimersByTime(1000);
+        expect(displayPort.showLines).not.toHaveBeenCalled();
+
+        jest.useRealTimers();
+    });
+
     // ------------------------
     // CONNECTION (Bluetooth)
     // ------------------------

@@ -103,6 +103,17 @@ describe('InternetRadioAudioProvider', () => {
         expect(mockProcess.on).toHaveBeenCalledWith('exit', expect.any(Function));
     });
 
+    test('reports loading immediately on start, before mpv/IPC connects', async () => {
+        const url = 'http://example.com/stream';
+        presetPort.getValueByPreset.mockReturnValue(url);
+        const callback = jest.fn();
+        provider.onNowPlayingChanged(callback);
+
+        await provider.start(1);
+
+        expect(callback).toHaveBeenCalledWith({ loading: true });
+    });
+
     test('forwards icy-title changes from the mpv IPC socket metadata updates', async () => {
         const url = 'http://example.com/stream';
         presetPort.getValueByPreset.mockReturnValue(url);

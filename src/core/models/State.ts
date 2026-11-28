@@ -15,7 +15,7 @@ export class State {
     pairing: boolean;
     connected: boolean;
     muted: boolean;
-    nowPlaying: { title?: string, subtitle?: string };
+    nowPlaying: { title?: string, subtitle?: string, loading?: boolean };
 
     constructor() {
         this.power = "idle";

@@ -10,7 +10,7 @@ export interface AudioProvider {
     // Optional: providers that can report track metadata (e.g. ICY StreamTitle,
     // AVRCP) call this when it changes. Providers with no metadata source simply
     // never invoke it.
-    onNowPlayingChanged?(callback: (info: { title?: string, subtitle?: string }) => void): void;
+    onNowPlayingChanged?(callback: (info: { title?: string, subtitle?: string, loading?: boolean }) => void): void;
 
     // Optional: only meaningful for providers that support a pairing flow (Bluetooth).
     enablePairing?(): Promise<void>;

@@ -54,7 +54,7 @@ export class BluetoothAudioProvider implements AudioProvider {
 
     private bus?: any;
     private connectedDevices = new Set<string>();
-    private nowPlayingCallback?: (info: { title?: string, subtitle?: string }) => void;
+    private nowPlayingCallback?: (info: { title?: string, subtitle?: string, loading?: boolean }) => void;
     private connectionCallback?: (connected: boolean) => void;
     private signalSubscriptions: SignalSubscription[] = [];
     private agentProcess: ChildProcess | undefined;
@@ -82,7 +82,7 @@ export class BluetoothAudioProvider implements AudioProvider {
         await this.run("bluetoothctl discoverable on && bluetoothctl pairable on");
     }
 
-    onNowPlayingChanged(callback: (info: { title?: string, subtitle?: string }) => void): void {
+    onNowPlayingChanged(callback: (info: { title?: string, subtitle?: string, loading?: boolean }) => void): void {
         this.nowPlayingCallback = callback;
     }
 
