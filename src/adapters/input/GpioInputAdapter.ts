@@ -193,10 +193,11 @@ export class GpioInputAdapter implements InputPort {
 
         if (this.accumulator >= STEPS_PER_DETENT) {
             this.accumulator -= STEPS_PER_DETENT;
-            this.volumeCallback?.(this.volumeStepPerDetent);
+            // Inverted: clockwise (a +1 quadrature step) should turn the volume down.
+            this.volumeCallback?.(-this.volumeStepPerDetent);
         } else if (this.accumulator <= -STEPS_PER_DETENT) {
             this.accumulator += STEPS_PER_DETENT;
-            this.volumeCallback?.(-this.volumeStepPerDetent);
+            this.volumeCallback?.(this.volumeStepPerDetent);
         }
     }
 

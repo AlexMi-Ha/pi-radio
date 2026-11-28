@@ -103,8 +103,9 @@ describe("GpioInputAdapter", () => {
     });
 
     // A full clockwise quadrature sequence (Gray code 00 -> 01 -> 11 -> 10 -> 00)
-    // should report exactly one +1 detent via the volume callback.
-    test("clockwise quadrature sequence produces a single positive volume delta", (done) => {
+    // should report exactly one -1 detent via the volume callback (volume
+    // direction is intentionally inverted: clockwise turns the volume down).
+    test("clockwise quadrature sequence produces a single negative volume delta", (done) => {
         const cb = jest.fn();
         adapter.onVolumeChange(cb);
 
@@ -122,12 +123,12 @@ describe("GpioInputAdapter", () => {
 
         setImmediate(() => {
             expect(cb).toHaveBeenCalledTimes(1);
-            expect(cb).toHaveBeenCalledWith(6);
+            expect(cb).toHaveBeenCalledWith(-6);
             done();
         });
     });
 
-    test("counter-clockwise quadrature sequence produces a single negative volume delta", (done) => {
+    test("counter-clockwise quadrature sequence produces a single positive volume delta", (done) => {
         const cb = jest.fn();
         adapter.onVolumeChange(cb);
 
@@ -144,7 +145,7 @@ describe("GpioInputAdapter", () => {
 
         setImmediate(() => {
             expect(cb).toHaveBeenCalledTimes(1);
-            expect(cb).toHaveBeenCalledWith(-6);
+            expect(cb).toHaveBeenCalledWith(6);
             done();
         });
     });
@@ -192,7 +193,7 @@ describe("GpioInputAdapter", () => {
         }
 
         setImmediate(() => {
-            expect(cb).toHaveBeenCalledWith(5);
+            expect(cb).toHaveBeenCalledWith(-5);
             done();
         });
     });
