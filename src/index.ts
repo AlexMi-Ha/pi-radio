@@ -2,7 +2,7 @@ import { ApiAdapter } from "./adapters/api/ApiAdapter";
 import { AudioAdapter } from "./adapters/audio/AudioAdapter";
 import { BluetoothAudioProvider } from "./adapters/audio/providers/BluetoothAudioProvider";
 import { InternetRadioAudioProvider } from "./adapters/audio/providers/InternetRadioAudioProvider";
-import { I2cLcdDisplayPort } from "./adapters/display/I2cLcdDisplayPort";
+import { AipI2cLcdDisplayPort } from "./adapters/display/AipI2cLcdDisplayPort";
 import { MockDisplayPort } from "./adapters/display/MockDisplayPort";
 import { GpioInputAdapter } from "./adapters/input/GpioInputAdapter";
 import { MockInputAdapter } from "./adapters/input/MockInputAdapter";
@@ -43,6 +43,7 @@ function createInputAdapter(useHardware: boolean): InputPort & { start(): void }
     encoderAPin: envInt("PI_RADIO_GPIO_ENCODER_A", 23),
     encoderBPin: envInt("PI_RADIO_GPIO_ENCODER_B", 24),
     encoderButtonPin: envInt("PI_RADIO_GPIO_ENCODER_BTN", 25),
+    volumeStepPerDetent: envInt("PI_RADIO_VOLUME_STEP", 6),
   });
 }
 
@@ -50,9 +51,9 @@ function createDisplayAdapter(useHardware: boolean): DisplayPort {
   if (!useHardware) {
     return new MockDisplayPort();
   }
-  return new I2cLcdDisplayPort({
+  return new AipI2cLcdDisplayPort({
     busNumber: envInt("PI_RADIO_I2C_BUS", 1),
-    address: envInt("PI_RADIO_I2C_LCD_ADDRESS", 0x27, 16),
+    address: envInt("PI_RADIO_I2C_LCD_ADDRESS", 0x3e, 16),
   });
 }
 
@@ -107,11 +108,25 @@ const controller = new RadioController({
 });
 
 // -----------
+// Shutdown
+// -----------
+function shutdown(signal: NodeJS.Signals): void {
+  logger.log(`[Shutdown] Received ${signal}, clearing display and exiting.`);
+  displayAdapter.clear();
+  process.exit(0);
+}
+
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+
+// -----------
 // Initialize
 // -----------
-controller.init();
+displayAdapter.playBootAnimation(() => {
+  controller.init();
 
-inputAdapter.start();
-apiAdapter.start();
+  inputAdapter.start();
+  apiAdapter.start();
 
-logger.log("Smart Kitchen Radio DEV environment running...");
+  logger.log("Smart Kitchen Radio DEV environment running...");
+});

@@ -45,9 +45,10 @@ From your dev machine, in the project root:
 ```
 
 This builds the app locally, copies `dist/`, `package.json` and
-`package-lock.json` to the Pi, and on the Pi: installs Node.js, `mpv`,
-`alsa-utils` and `bluez`, runs `npm ci --omit=dev`, and installs + enables
-the `pi-radio` systemd service (auto-starts on boot, restarts on crash).
+`package-lock.json` to the Pi, and on the Pi: upgrades system packages and
+installs `curl`, `mpv`, `alsa-utils`, `bluez` and `i2c-tools`, runs `npm ci
+--omit=dev`, and installs + enables the `pi-radio` systemd service
+(auto-starts on boot, restarts on crash).
 It then enables the read-only root overlay (see step 4 below) and reboots -
 so every `provision.sh` run, including the first one, always ends with the
 filesystem locked down, protecting the SD card from power-loss corruption.
@@ -95,21 +96,31 @@ above), each with a default placeholder value:
 | `PI_RADIO_GPIO_ENCODER_A` | `23`    | Rotary encoder A (quadrature) GPIO|
 | `PI_RADIO_GPIO_ENCODER_B` | `24`    | Rotary encoder B (quadrature) GPIO|
 | `PI_RADIO_GPIO_ENCODER_BTN`| `25`   | Rotary encoder push button (mute) GPIO|
+| `PI_RADIO_VOLUME_STEP`    | `6`     | Volume change per encoder detent  |
 | `PI_RADIO_I2C_BUS`        | `1`     | I2C bus number (`/dev/i2c-1`)     |
-| `PI_RADIO_I2C_LCD_ADDRESS`| `0x27`  | PCF8574 LCD backpack I2C address  |
+| `PI_RADIO_I2C_LCD_ADDRESS`| `0x3e`  | AiP31068L LCD module I2C address  |
 
-Buttons are assumed wired momentary-push-to-GND with the Pi's internal
-pull-up enabled (active-low, no external resistors needed). Before first
-deploying with real hardware, wire the LCD and confirm its I2C address with:
+Buttons, the encoder's push button, and the encoder's A/B quadrature lines
+are all wired momentary/switch-to-GND, active-low, relying on the Pi's
+internal pull-up rather than external resistors. `remote-setup.sh`'s
+`cmd_deploy` enables these automatically on every deploy, adding a
+`gpio=<power>,<mode>,<action>,<encoderA>,<encoderB>,<encoderBtn>=pu` line to
+`config.txt` (picking up any `PI_RADIO_GPIO_*` overrides from `deploy/.env`
+above) - no manual config.txt editing needed. This is a `config.txt` change,
+so it needs a reboot to take effect (same as the audio HAT changes below;
+`provision.sh` reboots automatically at the end of a normal deploy).
+
+Before first deploying with real hardware, wire the LCD and confirm its I2C address with:
 
 ```bash
 ssh pi@pi-radio.local
 i2cdetect -y 1
 ```
 
-`0x27` and `0x3F` are the two common PCF8574 backpack addresses - if yours
-differs, set `PI_RADIO_I2C_LCD_ADDRESS` in `/etc/default/pi-radio` and
-restart the service (`sudo systemctl restart pi-radio`).
+The display is a Waveshare LCD1602 I2C Module (AiP31068L native-I2C
+controller, not a PCF8574 GPIO-expander backpack), default address `0x3e`.
+If yours differs, set `PI_RADIO_I2C_LCD_ADDRESS` in `/etc/default/pi-radio`
+and restart the service (`sudo systemctl restart pi-radio`).
 
 > Real-hardware behavior (button feel/debounce tuning, encoder direction,
 > LCD contrast/address) has not been verified against physical hardware -
@@ -135,20 +146,47 @@ the active file reaches `PI_RADIO_LOG_MAX_FILE_SIZE_BYTES`, it's rotated to
 started, so disk usage stays bounded (at most roughly
 `maxFileSizeBytes * (maxFiles + 1)`) instead of growing forever. If the
 read-only overlay (see above) is enabled, point `PI_RADIO_LOG_FILE_PATH` at
-the same writable boot partition used for `PI_RADIO_PRESETS_PATH`, otherwise
-writes will fail once the overlay is active.
+the same persistent app-data mount used for `PI_RADIO_PRESETS_PATH`
+(`/var/lib/pi-radio/...`), otherwise writes will fail once the overlay is
+active.
 
 ### Bluetooth
 
-No extra setup is needed beyond the `bluez` package `provision.sh` already
-installs - live pairing/connection status and AVRCP track metadata work by
-talking to `bluetoothd` over the system D-Bus (`org.bluez`), which any user
+`provision.sh` installs `bluez` (pairing/connection control) and
+`bluez-alsa-utils` (actually routes the A2DP audio stream into ALSA - see
+below); `remote-setup.sh` also runs `rfkill unblock bluetooth` on every
+deploy, since some Pi OS images ship with the onboard Bluetooth radio
+soft-blocked, which otherwise makes `bluetoothctl power on` (and so
+switching the app into `bluetooth` mode) fail with `bluetoothd` logging
+"Failed to set mode: Failed (0x03)". Live pairing/connection status and
+AVRCP track metadata work by talking to `bluetoothd` over the system D-Bus
+(`org.bluez`), which any user
 (including the `pi` service account) can read from under BlueZ's default
-D-Bus policy. This has only been developed against the BlueZ D-Bus API
-documentation (`https://github.com/bluez/bluez/tree/master/doc`), not a real
-Bluetooth adapter - confirm pairing, A2DP audio routing, and the "Paired"/
-track-title display after deploying to a Pi with a Bluetooth adapter and an
-actual phone/device to pair.
+D-Bus policy.
+
+While `bluetooth` mode is active, `BluetoothAudioProvider` keeps two helper
+processes running alongside it:
+- A persistent `bluetoothctl` process registers a `NoInputNoOutput`
+  ("Just Works") pairing agent as BlueZ's default agent, so a phone's
+  pairing/bonding request is auto-accepted instead of stalling with nothing
+  to respond to it (the one-shot `bluetoothctl ... on` commands used to
+  enable discoverability/pairability exit immediately and never register an
+  agent on their own). Without this, the app's "Pairing" display can be left
+  blinking indefinitely if bonding never completes.
+- `bluealsa-aplay 00:00:00:00:00:00` pulls the decoded A2DP audio for
+  whichever device is currently connected out of `bluealsa` and plays it
+  through ALSA. `remote-setup.sh` pins `bluealsa.service` to the `a2dp-sink`
+  profile via a systemd drop-in (`configure_bluealsa_sink` in
+  `remote-setup.sh`) so the Pi always advertises itself as a sink - without
+  both of these, pairing/connection can succeed while the phone still has no
+  functioning audio sink to send sound to, and keeps playing out of its own
+  speakers.
+
+This has only been developed against the BlueZ D-Bus API documentation
+(`https://github.com/bluez/bluez/tree/master/doc`) and `bluez-alsa`'s own
+docs, not a real Bluetooth adapter - confirm pairing, A2DP audio routing, and
+the "Paired"/track-title display after deploying to a Pi with a Bluetooth
+adapter and an actual phone/device to pair.
 
 The name advertised to pairing devices defaults to the Pi's hostname. To set
 a custom name, set `PI_RADIO_BLUETOOTH_NAME` in `deploy/.env` (see above) -
@@ -156,6 +194,63 @@ a custom name, set `PI_RADIO_BLUETOOTH_NAME` in `deploy/.env` (see above) -
 deploy (this is persisted by `bluetoothd` itself, not the app, so it isn't
 re-applied on every app start - re-run `./deploy/provision.sh` after
 changing it).
+
+### Audio HAT (e.g. RaspiAudio HiFiBerry DAC)
+
+By default, Raspberry Pi OS plays audio through the onboard headphone jack
+(or HDMI), even if a DAC HAT's `dtoverlay` is already active via EEPROM
+auto-ID or an existing `config.txt` line - `aplay -l` will show the HAT as a
+card, but it won't be ALSA's default device, so the app's audio (spawned
+with no `--audio-device` flag) won't reach it. To make a HAT the default,
+set in `deploy/.env`:
+
+```bash
+PI_RADIO_AUDIO_HAT=hifiberry-dac
+```
+
+(the value is the HAT's `dtoverlay` name - `hifiberry-dac` for the RaspiAudio
+HiFiBerry DAC HAT this app was developed against; check your HAT's docs if
+it's a different one). When set, `remote-setup.sh` idempotently:
+
+- Ensures `dtoverlay=<value>` is present in `config.txt`.
+- Flips `dtparam=audio=on` to `dtparam=audio=off` (disabling onboard analog
+  audio).
+- Adds `hdmi_ignore_edid_audio=1` (suppressing HDMI audio specifically,
+  without disabling HDMI video, since that's still useful for debugging).
+- Installs `deploy/asound.conf` as `/etc/asound.conf`, wrapping the HAT in
+  ALSA's `softvol` plugin under a mixer control named `Master`. This is
+  needed because DACs like the HiFiBerry have no hardware volume control
+  (`amixer -c sndrpihifiberry scontrols` returns nothing) but
+  `AudioAdapter.ts` always runs `amixer set Master <vol>%` - `softvol` gives
+  it a `Master` control to act on, and because it sits at the ALSA default
+  level (not inside mpv), the same control also governs Bluetooth (A2DP)
+  output volume through the one rotary encoder.
+
+Leave `PI_RADIO_AUDIO_HAT` unset if you have no audio HAT - onboard audio is
+left untouched by default.
+
+> `softvol`'s `Master` control doesn't actually exist until something opens
+> the PCM at least once (ALSA creates it lazily on first use) - so if
+> nothing has played yet (e.g. no preset URL configured), `amixer set
+> Master` fails with "Unable to find simple control". `pi-radio.service`'s
+> `ExecStartPre` plays one second of silence through the default device on
+> every boot specifically to prime this control before the app's first
+> `setVolume()` call, so this shouldn't surface in practice - but it's why
+> that line is there if you're wondering.
+
+`config.txt` changes only take effect after a reboot. `./deploy/provision.sh`
+already reboots automatically at the end of every run (see "The read-only
+root filesystem" below), so a normal deploy picks this up with no extra
+step. If you instead ran `remote-setup.sh deploy` directly on the Pi, reboot
+it yourself (`sudo reboot`) afterwards.
+
+Verify after reboot:
+
+```bash
+cat /proc/asound/cards   # the HAT should be the only/first card
+amixer scontrols         # should list 'Master'
+speaker-test -c2 -t wav -l1   # no -D flag needed - should play through the HAT
+```
 
 ## 4. The read-only root filesystem
 
@@ -168,14 +263,27 @@ this step by hand; it's documented here so you understand what
 `provision.sh` is doing and why a plain `ssh`+edit on the Pi won't persist
 (see "Updating the app later" below).
 
-Preset data (the 5 station URLs) is stored on the boot partition
-(`/boot/firmware/pi-radio/presets.json`), which is separate FAT32 storage
-that stays writable even with the overlay active - so presets you edit via
-the web UI keep persisting across reboots, while everything else (the OS,
-the app code) resets to this known-good state on every boot.
+Preset data (the 5 station URLs) is stored at `/var/lib/pi-radio/presets.json`
+(`PI_RADIO_PRESETS_PATH`) - so presets you edit via the web UI keep
+persisting across reboots, while everything else (the OS, the app code)
+resets to this known-good state on every boot.
+
+`/var/lib/pi-radio` isn't on the root filesystem itself (which the overlay
+discards every reboot); it's a small ext4 filesystem loop-mounted from a
+single image file stored on the boot partition
+(`/boot/firmware/pi-radio-data.img`), set up by `remote-setup.sh`'s
+`setup_app_data_partition`. The boot partition is separate FAT32 storage
+that stays writable even with the overlay active, but FAT has no real
+per-file Unix permissions - a mount-wide mask that let the unprivileged `pi`
+user write there would also let it write to `config.txt`/`cmdline.txt`/the
+kernel image, turning a compromised app process into persistent, pre-boot
+code execution. Loop-mounting a real ext4 filesystem from a file on that
+partition avoids that: only root (via the loop mount, at deploy time) ever
+touches the FAT partition directly, while the app gets a normal pi-owned,
+`0700` directory with no access to anything else on it.
 
 The last mode, volume, and preset are persisted the same way
-(`/boot/firmware/pi-radio/settings.json`, `PI_RADIO_SETTINGS_PATH`), written
+(`/var/lib/pi-radio/settings.json`, `PI_RADIO_SETTINGS_PATH`), written
 whenever the radio is put into idle (powered off) - so the radio comes back
 up in the same state you left it in, instead of resetting to the defaults
 on every reboot.

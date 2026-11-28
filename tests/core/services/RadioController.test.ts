@@ -109,6 +109,10 @@ describe('RadioController', () => {
 
         controller.init();
 
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
+
         await handler();
         await Promise.resolve();
 
@@ -125,6 +129,10 @@ describe('RadioController', () => {
         inputPort.onPowerToggle.mockImplementation((cb: any) => handler = cb);
 
         controller.init();
+
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
 
         await handler();
 
@@ -144,6 +152,10 @@ describe('RadioController', () => {
 
         controller.init();
 
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
+
         await handler();
 
         expect(settingsPort.save).toHaveBeenCalledWith({
@@ -160,6 +172,10 @@ describe('RadioController', () => {
 
         controller.init();
 
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
+
         await handler();
 
         expect(settingsPort.save).not.toHaveBeenCalled();
@@ -175,12 +191,49 @@ describe('RadioController', () => {
 
         controller.init();
 
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
+
         await handler();
 
         expect(state.mode).toBe("bluetooth");
         expect(outputPort.setMode).toHaveBeenCalledWith("bluetooth");
         expect(outputPort.idlePresetState).toHaveBeenCalled();
-        expect(audioPort.playMode).toHaveBeenCalledWith("bluetooth", 0);
+        expect(audioPort.playMode).toHaveBeenCalledWith("bluetooth", 1);
+    });
+
+    test('preserves internet_radio preset across a trip through bluetooth', async () => {
+        let modeHandler: any;
+        inputPort.onModeToggle.mockImplementation((cb: any) => modeHandler = cb);
+
+        controller.init();
+
+        await new Promise(resolve => setImmediate(resolve));
+
+        await modeHandler();
+        expect(state.mode).toBe("bluetooth");
+
+        await modeHandler();
+        expect(state.mode).toBe("internet_radio");
+        expect(state.preset).toBe(1);
+    });
+
+    test('ignores mode toggle via input while idle', async () => {
+        state.power = "idle";
+        let handler: any;
+        inputPort.onModeToggle.mockImplementation((cb: any) => handler = cb);
+
+        controller.init();
+
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
+
+        await handler();
+
+        expect(state.mode).toBe("internet_radio");
+        expect(audioPort.playMode).not.toHaveBeenCalled();
     });
 
     test('toggles mode back to internet_radio on second toggle', async () => {
@@ -188,6 +241,10 @@ describe('RadioController', () => {
         inputPort.onModeToggle.mockImplementation((cb: any) => handler = cb);
 
         controller.init();
+
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
 
         await handler();
         await handler();
@@ -201,6 +258,10 @@ describe('RadioController', () => {
 
         controller.init();
 
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
+
         await handler("internet_radio");
 
         expect(audioPort.playMode).not.toHaveBeenCalled();
@@ -211,6 +272,10 @@ describe('RadioController', () => {
         presetPort.onPresetsUpdated.mockImplementation((cb: any) => handler = cb);
 
         controller.init();
+
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
 
         await handler();
 
@@ -227,6 +292,10 @@ describe('RadioController', () => {
 
         controller.init();
 
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
+
         await handler();
 
         expect(state.preset).toBe(2);
@@ -241,6 +310,10 @@ describe('RadioController', () => {
 
         controller.init();
 
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
+
         await handler();
 
         expect(state.preset).toBe(0);
@@ -253,6 +326,10 @@ describe('RadioController', () => {
 
         controller.init();
 
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
+
         await handler();
 
         expect(state.pairing).toBe(true);
@@ -260,9 +337,67 @@ describe('RadioController', () => {
         expect(audioPort.enablePairing).toHaveBeenCalled();
     });
 
+    test('pairing state reverts to not-paired on its own if no device ever connects', async () => {
+        state.mode = "bluetooth";
+        let handler: any;
+        inputPort.onActionPress.mockImplementation((cb: any) => handler = cb);
+
+        controller.init();
+
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
+        jest.useFakeTimers();
+        try {
+            await handler();
+            expect(state.pairing).toBe(true);
+
+            jest.runAllTimers();
+
+            expect(state.pairing).toBe(false);
+            expect(outputPort.setPairingState).toHaveBeenCalledWith(false);
+        } finally {
+            jest.useRealTimers();
+        }
+    });
+
+    test('ignores action press via input while idle', async () => {
+        state.power = "idle";
+        let handler: any;
+        inputPort.onActionPress.mockImplementation((cb: any) => handler = cb);
+
+        controller.init();
+
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
+
+        await handler();
+
+        expect(state.preset).toBe(1);
+        expect(audioPort.playMode).not.toHaveBeenCalled();
+    });
+
     // ------------------------
     // VOLUME
     // ------------------------
+
+    test('ignores volume change via input while idle', async () => {
+        state.power = "idle";
+        let handler: any;
+        inputPort.onVolumeChange.mockImplementation((cb: any) => handler = cb);
+
+        controller.init();
+
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
+
+        await handler(20);
+
+        expect(state.volume).toBe(50);
+        expect(audioPort.setVolume).not.toHaveBeenCalled();
+    });
 
     test('updates volume with clamp', async () => {
         let handler: any;
@@ -270,10 +405,15 @@ describe('RadioController', () => {
 
         controller.init();
 
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
+
         await handler(20); // delta
 
         expect(state.volume).toBe(70);
         expect(audioPort.setVolume).toHaveBeenCalledWith(70);
+        expect(displayPort.showTransient).toHaveBeenCalledWith("Volume", "\xFF".repeat(12) + " ".repeat(4), 5000);
     });
 
     test('volume cannot go below 0', async () => {
@@ -284,21 +424,66 @@ describe('RadioController', () => {
 
         controller.init();
 
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
+
         await handler(-50);
 
         expect(state.volume).toBe(0);
         expect(audioPort.setVolume).toHaveBeenCalledWith(0);
+        expect(displayPort.showTransient).toHaveBeenCalledWith("Volume", " ".repeat(16), 5000);
+    });
+
+    test('volume cannot exceed 96', async () => {
+        state.volume = 90;
+
+        let handler: any;
+        inputPort.onVolumeChange.mockImplementation((cb: any) => handler = cb);
+
+        controller.init();
+
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
+
+        await handler(50);
+
+        expect(state.volume).toBe(96);
+        expect(audioPort.setVolume).toHaveBeenCalledWith(96);
+        expect(displayPort.showTransient).toHaveBeenCalledWith("Volume", "\xFF".repeat(16), 5000);
     });
 
     // ------------------------
     // MUTE
     // ------------------------
 
+    test('ignores mute toggle via input while idle', async () => {
+        state.power = "idle";
+        let handler: any;
+        inputPort.onVolumeMute.mockImplementation((cb: any) => handler = cb);
+
+        controller.init();
+
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
+
+        await handler();
+
+        expect(state.muted).toBe(false);
+        expect(audioPort.setVolume).not.toHaveBeenCalled();
+    });
+
     test('encoder press mutes via input and flashes MUTED on display', async () => {
         let handler: any;
         inputPort.onVolumeMute.mockImplementation((cb: any) => handler = cb);
 
         controller.init();
+
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
 
         await handler();
 
@@ -312,6 +497,10 @@ describe('RadioController', () => {
         inputPort.onVolumeMute.mockImplementation((cb: any) => handler = cb);
 
         controller.init();
+
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
 
         await handler();
         await handler();
@@ -327,11 +516,16 @@ describe('RadioController', () => {
 
         controller.init();
 
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
+
         await volumeHandler(10);
 
         expect(state.volume).toBe(60);
         expect(state.muted).toBe(false);
         expect(audioPort.setVolume).toHaveBeenCalledWith(60);
+        expect(displayPort.showTransient).toHaveBeenCalledWith("Volume", "\xFF".repeat(10) + " ".repeat(6), 5000);
     });
 
     test('api setVolume while muted also unmutes', async () => {
@@ -341,10 +535,15 @@ describe('RadioController', () => {
 
         controller.init();
 
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
+
         await handler(70);
 
         expect(state.muted).toBe(false);
         expect(audioPort.setVolume).toHaveBeenCalledWith(70);
+        expect(displayPort.showTransient).toHaveBeenCalledWith("Volume", "\xFF".repeat(12) + " ".repeat(4), 5000);
     });
 
     test('api setMute works', async () => {
@@ -352,6 +551,10 @@ describe('RadioController', () => {
         apiPort.onSetMute.mockImplementation((cb: any) => handler = cb);
 
         controller.init();
+
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
 
         await handler(true);
 
@@ -363,11 +566,15 @@ describe('RadioController', () => {
     // NOW PLAYING
     // ------------------------
 
-    test('updates nowPlaying and refreshes display on now-playing change', () => {
+    test('updates nowPlaying and refreshes display on now-playing change', async () => {
         let handler: any;
         audioPort.onNowPlayingChanged.mockImplementation((cb: any) => handler = cb);
 
         controller.init();
+
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
 
         handler({ title: "Some Song" });
 
@@ -375,17 +582,49 @@ describe('RadioController', () => {
         expect(displayPort.showLines).toHaveBeenCalledWith('http://example.com/station', 'Some Song');
     });
 
+    test('shows an animated loading bar on line 2 while a station is loading', async () => {
+        jest.useFakeTimers();
+        let handler: any;
+        audioPort.onNowPlayingChanged.mockImplementation((cb: any) => handler = cb);
+
+        controller.init();
+        await Promise.resolve();
+
+        jest.clearAllMocks();
+
+        handler({ loading: true });
+
+        expect(state.nowPlaying).toEqual({ loading: true });
+        const [, firstLine2] = displayPort.showLines.mock.calls[0];
+        expect(firstLine2).toMatch(/^[ ]*\xFF{4}[ ]*$/);
+
+        jest.advanceTimersByTime(150);
+        const [, secondLine2] = displayPort.showLines.mock.calls[displayPort.showLines.mock.calls.length - 1];
+        expect(secondLine2).not.toEqual(firstLine2);
+
+        handler({ title: "Some Song" });
+        jest.clearAllMocks();
+        jest.advanceTimersByTime(1000);
+        expect(displayPort.showLines).not.toHaveBeenCalled();
+
+        jest.useRealTimers();
+    });
+
     // ------------------------
     // CONNECTION (Bluetooth)
     // ------------------------
 
-    test('device connecting clears pairing state and marks state as connected', () => {
+    test('device connecting clears pairing state and marks state as connected', async () => {
         state.mode = "bluetooth";
         state.pairing = true;
         let handler: any;
         audioPort.onConnectionChanged.mockImplementation((cb: any) => handler = cb);
 
         controller.init();
+
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
 
         handler(true);
 
@@ -395,13 +634,17 @@ describe('RadioController', () => {
         expect(displayPort.showLines).toHaveBeenCalledWith('Paired', undefined);
     });
 
-    test('device disconnecting marks state as not connected', () => {
+    test('device disconnecting marks state as not connected', async () => {
         state.mode = "bluetooth";
         state.connected = true;
         let handler: any;
         audioPort.onConnectionChanged.mockImplementation((cb: any) => handler = cb);
 
         controller.init();
+
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
 
         handler(false);
 
@@ -416,6 +659,10 @@ describe('RadioController', () => {
         apiPort.onSetMode.mockImplementation((cb: any) => handler = cb);
 
         controller.init();
+
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
 
         await handler("internet_radio");
 
@@ -433,17 +680,25 @@ describe('RadioController', () => {
 
         controller.init();
 
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
+
         await handler("power");
 
         expect(state.power).toBe("power");
         expect(audioPort.playMode).toHaveBeenCalled();
     });
 
-    test('api getState returns state', () => {
+    test('api getState returns state', async () => {
         let handler: any;
         apiPort.onGetState.mockImplementation((cb: any) => handler = cb);
 
         controller.init();
+
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
 
         const result = handler();
 
@@ -456,10 +711,14 @@ describe('RadioController', () => {
 
         controller.init();
 
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
+
         await handler("bluetooth");
 
         expect(state.mode).toBe("bluetooth");
-        expect(audioPort.playMode).toHaveBeenCalledWith("bluetooth", 0);
+        expect(audioPort.playMode).toHaveBeenCalledWith("bluetooth", 1);
     });
 
     test('api setPreset works', async () => {
@@ -467,6 +726,10 @@ describe('RadioController', () => {
         apiPort.onSetPreset.mockImplementation((cb: any) => handler = cb);
 
         controller.init();
+
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
 
         await handler(3);
 
@@ -480,10 +743,30 @@ describe('RadioController', () => {
 
         controller.init();
 
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
+
         await handler(55);
 
         expect(state.volume).toBe(55);
         expect(audioPort.setVolume).toHaveBeenCalledWith(55);
+        expect(displayPort.showTransient).toHaveBeenCalledWith("Volume", "\xFF".repeat(9) + " ".repeat(7), 5000);
+    });
+
+    test('volume change that does not alter the clamped value does not flash the volume bar', async () => {
+        let handler: any;
+        inputPort.onVolumeChange.mockImplementation((cb: any) => handler = cb);
+
+        controller.init();
+
+        await new Promise(resolve => setImmediate(resolve));
+
+        jest.clearAllMocks();
+
+        await handler(0);
+
+        expect(displayPort.showTransient).not.toHaveBeenCalled();
     });
 
 });

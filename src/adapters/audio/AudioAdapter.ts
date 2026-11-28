@@ -9,7 +9,7 @@ export class AudioAdapter implements AudioPort {
 
     private providers: Map<Mode, AudioProvider>;
     private currentProvider?: AudioProvider;
-    private nowPlayingCallback?: (info: { title?: string, subtitle?: string }) => void;
+    private nowPlayingCallback?: (info: { title?: string, subtitle?: string, loading?: boolean }) => void;
     private connectionCallback?: (connected: boolean) => void;
 
     constructor(providers: AudioProvider[]) {
@@ -40,7 +40,7 @@ export class AudioAdapter implements AudioPort {
         await this.setSystemVolume(vol);
     }
 
-    onNowPlayingChanged(callback: (info: { title?: string, subtitle?: string }) => void): void {
+    onNowPlayingChanged(callback: (info: { title?: string, subtitle?: string, loading?: boolean }) => void): void {
         this.nowPlayingCallback = callback;
     }
 

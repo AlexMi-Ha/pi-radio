@@ -17,13 +17,13 @@ export class InternetRadioAudioProvider implements AudioProvider {
     private currentProcess: ChildProcessWithoutNullStreams | undefined;
     private ipcSocket: Socket | undefined;
     private ipcPath: string | undefined;
-    private nowPlayingCallback?: (info: { title?: string, subtitle?: string }) => void;
+    private nowPlayingCallback?: (info: { title?: string, subtitle?: string, loading?: boolean }) => void;
 
     constructor(presetPort: PresetPort) {
         this.presetPort = presetPort;
     }
 
-    onNowPlayingChanged(callback: (info: { title?: string, subtitle?: string }) => void): void {
+    onNowPlayingChanged(callback: (info: { title?: string, subtitle?: string, loading?: boolean }) => void): void {
         this.nowPlayingCallback = callback;
     }
 
@@ -43,6 +43,7 @@ export class InternetRadioAudioProvider implements AudioProvider {
         }
 
         logger.log('[Internet Radio] Playing internet radio station at ' + url);
+        this.nowPlayingCallback?.({ loading: true });
 
         // Unique per invocation (not just per Node process) so a restarting mpv instance
         // can never race the previous one for the same socket path.
@@ -96,6 +97,8 @@ export class InternetRadioAudioProvider implements AudioProvider {
                     if(msg.event === "property-change" && msg.name === "metadata" && msg.data && typeof msg.data === "object") {
                         const icyTitle = msg.data["icy-title"];
                         const title = typeof icyTitle === "string" && icyTitle.length > 0 ? icyTitle : undefined;
+                        // Receiving any metadata event at all means the stream has
+                        // started, which is also our only "no longer loading" signal.
                         this.nowPlayingCallback?.(title !== undefined ? { title } : {});
                     }
                 }catch {

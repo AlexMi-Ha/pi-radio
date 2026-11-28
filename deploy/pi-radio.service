@@ -2,10 +2,20 @@
 Description=Kitchen Radio
 After=network-online.target sound.target
 Wants=network-online.target
+RequiresMountsFor=/var/lib/pi-radio
 
 [Service]
 User=pi
 WorkingDirectory=/opt/pi-radio
+# ALSA's softvol plugin (see deploy/asound.conf) only creates its virtual
+# "Master" mixer control the first time something actually opens the PCM -
+# AudioAdapter.ts's `amixer set Master` calls fail with "Unable to find
+# simple control" until then. Priming it here with one second of silence
+# guarantees it exists before the app's first setVolume() call, regardless
+# of whether any station has played yet. Harmless (and near-instant) when
+# no audio HAT/softvol setup is configured too, since it just plays silence
+# through onboard audio instead.
+ExecStartPre=-/usr/bin/timeout 1 /usr/bin/aplay -D default -q -f S16_LE -r 48000 -c2 /dev/zero
 ExecStart=/usr/bin/node dist/index.js
 EnvironmentFile=-/etc/default/pi-radio
 Restart=always
